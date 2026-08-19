@@ -15,5 +15,5 @@ jobs:
       - name: bash -n
         run: find scripts -type f -name '*.sh' -print0 | xargs -0 -r bash -n
       - name: ci-check
-        run: ./scripts/ci-check.sh
+        run: bash scripts/ci-check.sh
 

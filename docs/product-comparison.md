@@ -1,5 +1,7 @@
 # Product comparison — generic vs ServiceNow
 
+> **Maintainers:** edit the generic repo copy first; sync the table row to the SN repo before tagging.
+
 | Topic | [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer) | [pii-intake-pseudonymizer-sn](https://github.com/alkitect/pii-intake-pseudonymizer-sn) |
 |-------|---------------------|------------------------|
 | Default I/O | `input/` → `output/` | `inbox/raw/` → `inbox/clean/` |

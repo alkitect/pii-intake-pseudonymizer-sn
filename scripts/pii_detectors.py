@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib PII detectors shared by anonymize CLI and hooks (no Presidio / NER).
+"""Stdlib PII detectors shared by the anonymize CLI (no Presidio / NER).
 
 Covers phones, IBAN (mod-97), optional BSN (11-proef), MAC, NL postcode,
 labeled DOB, and high-confidence residual scanning after scrub.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local offline PII scrubber / pseudonymizer for inbox intake.
+"""Local offline PII intake pseudonymizer for inbox intake.
 
 Drop files in inbox/raw/, run this script, use inbox/clean/ or --promote.
 Successful writes from inbox/raw delete scrubbed sources by default (--keep-raw to retain).
@@ -39,6 +39,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+import intake_manifest as _manifest  # noqa: E402
 import pii_detectors as _det  # noqa: E402
 import pii_map_crypto as _crypto  # noqa: E402
 
@@ -1583,25 +1584,15 @@ def promote_clean(clean_root: Path, story_id: str) -> Path:
     return target
 
 
-def _pii_detect():
-    hooks_dir = Path(__file__).resolve().parents[1] / ".cursor" / "hooks"
-    if str(hooks_dir) not in sys.path:
-        sys.path.insert(0, str(hooks_dir))
-    import pii_detect as _pd  # noqa: PLC0415
-
-    return _pd
-
-
 def _record_intake_outputs(dests: list[Path]) -> None:
-    """Tell the read hook these clean/promote files came from a successful scrub."""
+    """Record successful clean/promote writes in the intake manifest."""
     if not dests:
         return
-    _pd = _pii_detect()
     for dest in dests:
         if dest.is_dir():
-            _pd.record_intake_tree(dest, REPO_ROOT, local_dir=LOCAL_DIR)
+            _manifest.record_intake_tree(dest, REPO_ROOT, local_dir=LOCAL_DIR)
         elif dest.is_file():
-            _pd.record_intake_write(dest, REPO_ROOT, local_dir=LOCAL_DIR)
+            _manifest.record_intake_write(dest, REPO_ROOT, local_dir=LOCAL_DIR)
 
 
 def _under_dir(path: Path, root: Path) -> bool:
@@ -2240,15 +2231,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if manage_staging:
             try:
-                _pd = _pii_detect()
                 if args.promote:
                     deleted_clean += clear_clean_staging(clean_root)
-                    _pd.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
+                    _manifest.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
                 elif wrote_under_clean:
                     keep_rels = {
                         _rel_to_repo(d).replace("\\", "/") for d in wrote_under_clean
                     }
-                    _pd.retain_inbox_clean_manifest_keys(
+                    _manifest.retain_inbox_clean_manifest_keys(
                         REPO_ROOT, keep_rels, local_dir=LOCAL_DIR
                     )
             except OSError as e:

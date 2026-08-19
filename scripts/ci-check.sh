@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release gate for pii-intake-scrubber-servicenow (local + CI).
+# Release gate for pii-intake-pseudonymizer-sn (local + CI).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,7 +63,27 @@ grep -qF 'MIT — see [LICENSE](LICENSE).' README.md \
 grep -qF 'First public tag: v0.1.0' docs/PUBLISH.md \
   || { echo "ci-check: PUBLISH must record First public tag: v0.1.0" >&2; exit 1; }
 
-for f in scripts/install-to-local.sh scripts/uninstall-from-local.sh scripts/verify-pii-intake-scrubber.sh; do
+REQUIRED_DOCS=(
+  SECURITY.md
+  CHANGELOG.md
+  docs/README.md
+  docs/product-comparison.md
+  docs/getting-started.md
+  docs/repo-layout.md
+  docs/commit-gate.md
+  docs/configuration.md
+  docs/cli-reference.md
+  docs/security.md
+  docs/examples/README.md
+  docs/architecture/README.md
+  docs/decisions/README.md
+  docs/PUBLISH.md
+)
+for f in "${REQUIRED_DOCS[@]}"; do
+  test -f "${f}" || { echo "ci-check: missing required doc ${f}" >&2; exit 1; }
+done
+
+for f in scripts/install-to-local.sh scripts/uninstall-from-local.sh scripts/verify-pii-intake-pseudonymizer-sn.sh; do
   test -f "${f}" || { echo "ci-check: missing ${f}" >&2; exit 1; }
 done
 
@@ -87,15 +107,15 @@ export PATH="${tmp}/venv/bin:${PATH}"
 python -m pip install -q -r "${ROOT}/requirements-pii.txt" pytest
 
 "${ROOT}/scripts/install-to-local.sh"
-test -x "${HOME}/.local/bin/pii-intake-scrubber-servicenow"
-test -x "${HOME}/.local/bin/verify-pii-intake-scrubber-servicenow"
+test -x "${HOME}/.local/bin/pii-intake-pseudonymizer-sn"
+test -x "${HOME}/.local/bin/verify-pii-intake-pseudonymizer-sn"
 
-"${HOME}/.local/bin/verify-pii-intake-scrubber-servicenow"
+"${HOME}/.local/bin/verify-pii-intake-pseudonymizer-sn"
 
 "${ROOT}/scripts/uninstall-from-local.sh"
-test ! -e "${HOME}/.local/bin/pii-intake-scrubber-servicenow"
-test ! -e "${HOME}/.local/bin/verify-pii-intake-scrubber-servicenow"
-test ! -d "${XDG_DATA_HOME}/pii-intake-scrubber-servicenow"
+test ! -e "${HOME}/.local/bin/pii-intake-pseudonymizer-sn"
+test ! -e "${HOME}/.local/bin/verify-pii-intake-pseudonymizer-sn"
+test ! -d "${XDG_DATA_HOME}/pii-intake-pseudonymizer-sn"
 
 echo "ci-check: OK"
 

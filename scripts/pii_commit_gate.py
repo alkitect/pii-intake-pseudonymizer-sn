@@ -2,7 +2,7 @@
 """PII commit gate: scan staged src/stories **index** blobs with --summary.
 
 Fail-closed. Never --report / --in-place. Never requires PII_MAP_KEY.
-Used by .githooks/pre-commit and scripts/verify-before-commit.py.
+Run manually or wire into your own pre-commit hook.
 """
 
 from __future__ import annotations

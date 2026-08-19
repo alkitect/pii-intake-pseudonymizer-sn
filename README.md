@@ -1,6 +1,6 @@
-# PII Intake Anonymization Scrubber (ServiceNow workflow)
+# PII Intake Pseudonymizer (ServiceNow workflow)
 
-Offline PII scrubber / pseudonymizer for ServiceNow-style story monorepos — drop exports in `inbox/raw/`, scrub to `inbox/clean/`, and keep stable tokens via an encrypted map.
+Offline PII intake pseudonymizer for ServiceNow-style story monorepos — drop exports in `inbox/raw/`, pseudonymize to `inbox/clean/`, and keep stable tokens via an encrypted map.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/alkitect/?hidefeed=true&widget=true&embed=true)
 
@@ -8,9 +8,9 @@ Offline PII scrubber / pseudonymizer for ServiceNow-style story monorepos — dr
 
 It helps you safely process ServiceNow / Jira exports and story docs where PII may be embedded in free text (emails, usernames, org names, IPs, etc.).
 
-It runs `scripts/anonymize_intake.py` on `inbox/raw/` (default), writes scrubbed output to `inbox/clean/`, and can `--promote` into `src/stories/<STORY-id>/`. Replacements stay stable across runs via an encrypted `./.local/pii-map.json`.
+It runs `scripts/anonymize_intake.py` on `inbox/raw/` (default), writes pseudonymized output to `inbox/clean/`, and can `--promote` into `src/stories/<STORY-id>/`. Replacements stay stable across runs via an encrypted `./.local/pii-map.json`.
 
-**Safe by default:** use `--summary` on `src/stories/...` paths for detect-only commit gates (no output/map writes), or `--dry-run` for intake. Only run a real scrub when you've set your map key.
+**Safe by default:** use `--summary` on `src/stories/...` paths for detect-only commit gates (no output/map writes), or `--dry-run` for intake. Only run a real pass when you've set your map key.
 
 ## Who this is for
 
@@ -21,8 +21,8 @@ It runs `scripts/anonymize_intake.py` on `inbox/raw/` (default), writes scrubbed
 ## Quick start
 
 ```bash
-git clone https://github.com/alkitect/pii-intake-scrubber-servicenow.git
-cd pii-intake-scrubber-servicenow
+git clone https://github.com/alkitect/pii-intake-pseudonymizer-sn.git
+cd pii-intake-pseudonymizer-sn
 
 ./scripts/install-to-local.sh
 
@@ -31,16 +31,18 @@ python -m pip install -r requirements-pii.txt pytest
 mkdir -p inbox/raw inbox/clean .local src/stories/STORY-1000/docs
 
 # 1) Detect-only commit gate on story docs (no map key required)
-pii-intake-scrubber-servicenow src/stories/STORY-1000/docs --summary --dry-run
+pii-intake-pseudonymizer-sn src/stories/STORY-1000/docs --summary
 
-# 2) Scrub dropped exports (writes inbox/clean + updates encrypted map)
-#    Copy files into inbox/raw first; set your key (see Configure)
-pii-intake-scrubber-servicenow inbox/raw
+# 2) Pseudonymize dropped exports (+ optional promote; set key first — see Configure)
+#    Copy files into inbox/raw first
+pii-intake-pseudonymizer-sn inbox/raw --promote STORY-1000
 ```
 
-**What you installed:** wrappers `pii-intake-scrubber-servicenow` and `verify-pii-intake-scrubber-servicenow` in `~/.local/bin`.
+Omit `--promote STORY-1000` if you only need `inbox/clean/`. `--summary` implies `--dry-run` and `--fail-on-hits`.
 
-**Stay safe before enabling:** run `--summary --dry-run` on a story subtree first; keep `PII_MAP_KEY` secret until you've confirmed outputs look right.
+**What you installed:** wrappers `pii-intake-pseudonymizer-sn` and `verify-pii-intake-pseudonymizer-sn` in `~/.local/bin`.
+
+**Stay safe before enabling:** run `--summary` on a story subtree first; keep `PII_MAP_KEY` secret until you've confirmed outputs look right.
 
 **Needs:**
 - Python 3 + `pip`
@@ -48,10 +50,10 @@ pii-intake-scrubber-servicenow inbox/raw
 
 ## Check it works
 
-Good output means: `verify-pii-intake-scrubber-servicenow` exits 0.
+Good output means: `verify-pii-intake-pseudonymizer-sn` exits 0.
 
 ```bash
-verify-pii-intake-scrubber-servicenow
+verify-pii-intake-pseudonymizer-sn
 ```
 
 Maintainers: `./scripts/ci-check.sh`.
@@ -72,19 +74,41 @@ Set the encryption key used for `./.local/pii-map.json`:
 Optional NER extras:
 - `requirements-pii-ner.txt` adds Presidio/spaCy; NER is off by default (use `--ner` to opt in).
 
+## How it works
+
+```mermaid
+flowchart LR
+  raw[inbox_raw] --> cli[pii-intake-pseudonymizer-sn]
+  cli --> clean[inbox_clean]
+  clean -->|optional_promote| story[src_stories_intake_clean]
+  cli --> manifest[.local_intake_manifest]
+```
+
+| Piece | Role |
+|-------|------|
+| `anonymize_intake.py` | CLI: intake, promote, commit gate modes |
+| `intake_manifest.py` | Checksum registry for clean outputs |
+| `.local/pii-map.json` | Encrypted stable pseudonym store |
+
+Docs: [docs/README.md](docs/README.md) · [Repo layout](docs/repo-layout.md) · [Architecture](docs/architecture/README.md)
+
 ## Limits & safety
 
 This tool can rewrite local files if you run it outside `--dry-run` / `--summary` gate modes. Scope:
 
 - **Platform:** offline, local file processing (CLI); defaults to `inbox/raw` → `inbox/clean`
+- **Safety model:** CLI pseudonymization + `--summary` commit gates on `src/stories/`; do not point agents or editors at `inbox/raw` without pseudonymizing first
 - **Kill-switch:** use `--dry-run` / `--summary` to prevent output/map writes; run `./scripts/uninstall-from-local.sh` to remove installed wrappers
-- **Defaults:** `--summary` on `inbox/raw` is refused (intake vs commit gate); real scrub requires an encryption key for saving the map
+- **Defaults:** `--summary` on `inbox/raw` is refused (intake vs commit gate); real pseudonymization requires an encryption key for saving the map
 - **Tradeoffs:** stable tokenization requires a persistent encrypted map; deleting `./.local/pii-map.json` will change pseudonyms
 
 - This GitHub repo is the release source for tagged releases and public docs — see [CONTRIBUTING.md](CONTRIBUTING.md)
+
+**Documentation:** [docs/README.md](docs/README.md) · [Product comparison](docs/product-comparison.md) · generic sibling [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer)
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
 
 Optional tip jar: [ko-fi.com/alkitect](https://ko-fi.com/alkitect/?hidefeed=true&widget=true&embed=true)
+

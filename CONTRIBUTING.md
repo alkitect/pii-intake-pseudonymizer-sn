@@ -26,8 +26,8 @@ First public tag is recorded in `docs/PUBLISH.md` (`First public tag:`). Default
 
 ## Bug reports
 When reporting issues, include:
-- What input file(s) you scrubbed (or a redacted example)
-- Whether you used `--summary` / `--dry-run` / real scrub
+- What input file(s) you pseudonymized (or a redacted example)
+- Whether you used `--summary` (detect-only), `--dry-run`, or a real write
 - Whether you provided an encryption key (`PII_MAP_KEY` / `PII_MAP_KEY_FILE`)
 
 ## Run before PR

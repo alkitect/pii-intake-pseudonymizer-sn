@@ -22,7 +22,7 @@ def _load_mod():
         sys.path.insert(0, scripts)
     # Reload dependents if already imported
     for name in list(sys.modules):
-        if name in {"anonymize_intake", "pii_map_crypto", "pii_detectors", "pii_ner"}:
+        if name in {"anonymize_intake", "pii_map_crypto", "pii_detectors", "pii_ner", "intake_manifest"}:
             del sys.modules[name]
     spec = importlib.util.spec_from_file_location("anonymize_intake", SCRIPT)
     assert spec and spec.loader

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Verify installed pii-intake-scrubber-servicenow in read-only mode.
+# Verify installed pii-intake-pseudonymizer-sn in read-only mode.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "=== pii-intake-scrubber-servicenow verify ==="
+echo "=== pii-intake-pseudonymizer-sn verify ==="
 
 test -f "${ROOT}/scripts/anonymize_intake.py" || {
   echo "verify: missing scripts/anonymize_intake.py in ${ROOT}" >&2
@@ -19,5 +19,4 @@ echo ""
 echo "=== unit tests ==="
 python -m pytest -q "${ROOT}/tests/unit"
 
-echo "verify-pii-intake-scrubber-servicenow: OK"
-
+echo "verify-pii-intake-pseudonymizer-sn: OK"

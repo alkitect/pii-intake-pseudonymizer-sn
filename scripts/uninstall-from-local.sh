@@ -3,10 +3,9 @@
 set -euo pipefail
 
 BIN="${HOME}/.local/bin"
-DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/pii-intake-scrubber-servicenow"
+DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/pii-intake-pseudonymizer-sn"
 
-rm -f "${BIN}/pii-intake-scrubber-servicenow" "${BIN}/verify-pii-intake-scrubber-servicenow"
+rm -f "${BIN}/pii-intake-pseudonymizer-sn" "${BIN}/verify-pii-intake-pseudonymizer-sn"
 rm -rf "${DATA_DIR}"
 
-echo "Uninstalled pii-intake-scrubber-servicenow wrappers."
-
+echo "Uninstalled pii-intake-pseudonymizer-sn wrappers."

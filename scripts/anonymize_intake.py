@@ -162,6 +162,10 @@ _DEFAULT_COUNTERS = {
     "mac": 0,
     "postcode": 0,
     "dob": 0,
+    "machine": 0,
+    "path": 0,
+    "cmd": 0,
+    "cert": 0,
 }
 
 
@@ -180,6 +184,10 @@ class PiiMap:
     macs: dict[str, str] = field(default_factory=dict)
     postcodes: dict[str, str] = field(default_factory=dict)
     dobs: dict[str, str] = field(default_factory=dict)
+    machines: dict[str, str] = field(default_factory=dict)
+    paths: dict[str, str] = field(default_factory=dict)
+    commands: dict[str, str] = field(default_factory=dict)
+    certs: dict[str, str] = field(default_factory=dict)
     status: str = "ok"  # ok | missing | unavailable | plaintext
     irreversible: bool = False
     _ephemeral_hmac_key: bytes = field(default_factory=lambda: b"", repr=False)
@@ -225,6 +233,10 @@ class PiiMap:
             macs={k.lower(): v for k, v in (data.get("macs") or {}).items()},
             postcodes={k.lower(): v for k, v in (data.get("postcodes") or {}).items()},
             dobs=dict(data.get("dobs") or {}),
+            machines=dict(data.get("machines") or {}),
+            paths=dict(data.get("paths") or {}),
+            commands=dict(data.get("commands") or {}),
+            certs=dict(data.get("certs") or {}),
             status=status,
         )
 
@@ -243,6 +255,10 @@ class PiiMap:
             "macs": self.macs,
             "postcodes": self.postcodes,
             "dobs": self.dobs,
+            "machines": self.machines,
+            "paths": self.paths,
+            "commands": self.commands,
+            "certs": self.certs,
         }
 
     def save(self) -> None:
@@ -273,6 +289,10 @@ class PiiMap:
         _prune(self.macs)
         _prune(self.postcodes)
         _prune(self.dobs)
+        _prune(self.machines)
+        _prune(self.paths)
+        _prune(self.commands)
+        _prune(self.certs)
         return removed
 
     def _next(self, kind: str) -> int:
@@ -417,6 +437,46 @@ class PiiMap:
                 n = self._next("dob")
                 self.dobs[key] = f"1900-01-{(n % 28) + 1:02d}"
         return self.dobs[key]
+
+    def machine_token(self, value: str) -> str:
+        key = value.strip()
+        if key not in self.machines:
+            if self.irreversible:
+                self.machines[key] = self._irreversible_token("machine", key.lower())
+            else:
+                n = self._next("machine")
+                self.machines[key] = f"MACHINE_{n:03d}"
+        return self.machines[key]
+
+    def path_token(self, value: str) -> str:
+        key = value.strip()
+        if key not in self.paths:
+            if self.irreversible:
+                self.paths[key] = self._irreversible_token("path", key.lower())
+            else:
+                n = self._next("path")
+                self.paths[key] = f"PATH_{n:03d}"
+        return self.paths[key]
+
+    def cmd_token(self, value: str) -> str:
+        key = value.strip()
+        if key not in self.commands:
+            if self.irreversible:
+                self.commands[key] = self._irreversible_token("cmd", key.lower())
+            else:
+                n = self._next("cmd")
+                self.commands[key] = f"CMD_{n:03d}"
+        return self.commands[key]
+
+    def cert_token(self, value: str) -> str:
+        key = value.strip()
+        if key not in self.certs:
+            if self.irreversible:
+                self.certs[key] = self._irreversible_token("cert", key.lower())
+            else:
+                n = self._next("cert")
+                self.certs[key] = f"CERT_{n:03d}"
+        return self.certs[key]
 
 
 def load_allowlist(path: Path) -> set[str]:
@@ -563,6 +623,10 @@ _PSEUDO_TOKEN_RE = re.compile(
     r"|username_\d+"
     r"|PHONE_\d+"
     r"|IBAN_\d+"
+    r"|MACHINE_\d+"
+    r"|PATH_\d+"
+    r"|CMD_\d+"
+    r"|CERT_\d+"
     r"|REDACTED_[A-Z]+_[0-9a-f]+"
     r"|(?:UHMASKEDADDR_)?user_\d+@example\.test"
     r")$",
@@ -1277,6 +1341,10 @@ def anonymize_text(
     pii_map: PiiMap,
     allowlist: set[str],
     also_ip: bool,
+    also_machines: bool = False,
+    also_paths: bool = False,
+    also_commands: bool = False,
+    also_certificates: bool = False,
     source: str = "",
     harvest_names: bool = True,
     harvest_single_token: bool = False,
@@ -1477,6 +1545,52 @@ def anonymize_text(
             return token
 
         out = IPV6_CANDIDATE_RE.sub(ipv6_sub, out)
+
+    # 5b) Opt-in technical scrub extensions (default off — warn-only residuals)
+    if also_certificates:
+        for block in sorted(set(_det.find_pem_blocks(out)), key=len, reverse=True):
+            token = pii_map.cert_token(block)
+            pattern = re.compile(re.escape(block), re.DOTALL)
+
+            def cert_sub(m: re.Match[str], _tok: str = token, _b: str = block) -> str:
+                hits.append(Hit("cert", _b, _tok, source))
+                return _tok
+
+            out = pattern.sub(cert_sub, out, count=1)
+
+    if also_paths:
+        for path_val in sorted(set(_det.find_absolute_paths(out)), key=len, reverse=True):
+            token = pii_map.path_token(path_val)
+            pattern = re.compile(re.escape(path_val))
+
+            def path_sub(m: re.Match[str], _tok: str = token, _p: str = path_val) -> str:
+                hits.append(Hit("path", _p, _tok, source))
+                return _tok
+
+            out = pattern.sub(path_sub, out)
+
+    if also_commands:
+        for cmd in sorted(set(_det.find_command_lines(out)), key=len, reverse=True):
+            token = pii_map.cmd_token(cmd)
+            pattern = re.compile(re.escape(cmd))
+
+            def cmd_sub(m: re.Match[str], _tok: str = token, _c: str = cmd) -> str:
+                hits.append(Hit("cmd", _c, _tok, source))
+                return _tok
+
+            out = pattern.sub(cmd_sub, out)
+
+    if also_machines:
+
+        def machine_sub(m: re.Match[str]) -> str:
+            prefix, val = m.group(1), m.group(2)
+            if is_pseudo_token(val) or val.upper().startswith("MACHINE_"):
+                return m.group(0)
+            token = pii_map.machine_token(val)
+            hits.append(Hit("machine", val, token, source))
+            return f"{prefix}{token}"
+
+        out = _det.LABELED_MACHINE_RE.sub(machine_sub, out)
 
     # 6) IBAN before phones (digit groups inside IBAN must not become phone hits)
     for iban in sorted(set(_det.find_valid_ibans(out)), key=len, reverse=True):
@@ -1690,6 +1804,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--also-ip", action="store_true", help="Also anonymize IPv4/IPv6 addresses (default off)")
     p.add_argument(
+        "--also-machines",
+        action="store_true",
+        help="Also scrub labeled hostname/machine fields (default off)",
+    )
+    p.add_argument(
+        "--also-paths",
+        action="store_true",
+        help="Also scrub absolute file paths (Windows/Unix; default off)",
+    )
+    p.add_argument(
+        "--also-commands",
+        action="store_true",
+        help="Also scrub command-like lines (py, git, powershell, …; default off)",
+    )
+    p.add_argument(
+        "--also-certificates",
+        action="store_true",
+        help="Also scrub PEM certificate blocks (default off)",
+    )
+    p.add_argument(
+        "--also-technical",
+        action="store_true",
+        help="Enable --also-machines, --also-paths, --also-commands, and --also-certificates "
+        "(default off; use for logs/exports with hostnames, paths, shell lines, or PEM)",
+    )
+    p.add_argument(
         "--also-nl-id",
         action="store_true",
         help="Also scrub labeled BSN fields (11-proef); default off",
@@ -1885,8 +2025,18 @@ def _validate_gate_targets(targets: list[Path], raw_root: Path) -> str | None:
     return None
 
 
+def _apply_also_technical(args: argparse.Namespace) -> None:
+    """Bundle opt-in machine/path/command/certificate scrub flags."""
+    if getattr(args, "also_technical", False):
+        args.also_machines = True
+        args.also_paths = True
+        args.also_commands = True
+        args.also_certificates = True
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    _apply_also_technical(args)
     _apply_agent_safe_defaults(args, argv)
     _apply_gate_defaults(args)
     raw_root = DEFAULT_RAW.resolve()
@@ -2036,6 +2186,10 @@ def main(argv: list[str] | None = None) -> int:
             pii_map=pii_map,
             allowlist=allowlist,
             also_ip=args.also_ip,
+            also_machines=args.also_machines,
+            also_paths=args.also_paths,
+            also_commands=args.also_commands,
+            also_certificates=args.also_certificates,
             source=_rel_to_repo(src),
             harvest_names=args.harvest_names,
             harvest_single_token=args.harvest_single_token,

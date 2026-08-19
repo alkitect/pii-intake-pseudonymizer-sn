@@ -39,3 +39,48 @@ def test_residual_high_confidence():
     assert r.high_confidence_count >= 2
     assert r.warn_count >= 1
     assert r.counts_agent_safe()["residual_email"] >= 1
+
+
+def test_find_labeled_machines():
+    text = "hostname: host-a\nhost= box-b\n"
+    machines = det.find_labeled_machines(text)
+    assert "host-a" in machines
+    assert "box-b" in machines
+
+
+def test_find_absolute_paths():
+    text = r"C:\Users\a\file.txt and /home/a/file.txt"
+    paths = det.find_absolute_paths(text)
+    assert any("C:\\Users" in p for p in paths)
+    assert any("/home/a" in p for p in paths)
+
+
+def test_find_command_lines():
+    text = "py -3 scripts/foo.py\nplain line\n"
+    cmds = det.find_command_lines(text)
+    assert len(cmds) == 1
+    assert "foo.py" in cmds[0]
+
+
+def test_find_pem_blocks_whole_block():
+    pem = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "MIIB\n"
+        "-----END CERTIFICATE-----\n"
+    )
+    blocks = det.find_pem_blocks(pem)
+    assert len(blocks) == 1
+    assert "BEGIN CERTIFICATE" in blocks[0]
+
+
+def test_find_pem_blocks_skips_malformed():
+    text = "-----BEGIN CERTIFICATE-----\nno end marker"
+    assert det.find_pem_blocks(text) == []
+
+
+def test_looks_like_sensitive_technical_paste():
+    assert det.looks_like_sensitive_technical_paste("hostname: x\n") is True
+    assert det.looks_like_sensitive_technical_paste("py -3 foo.py\n") is True
+    assert det.looks_like_sensitive_technical_paste("-----BEGIN CERTIFICATE-----\n") is True
+    assert det.looks_like_sensitive_technical_paste(r"C:\Users\a\file.txt") is True
+    assert det.looks_like_sensitive_technical_paste("plain prose only") is False

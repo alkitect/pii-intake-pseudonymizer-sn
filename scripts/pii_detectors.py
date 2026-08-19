@@ -2,7 +2,8 @@
 """Stdlib PII detectors shared by the anonymize CLI (no Presidio / NER).
 
 Covers phones, IBAN (mod-97), optional BSN (11-proef), MAC, NL postcode,
-labeled DOB, and high-confidence residual scanning after scrub.
+labeled DOB, high-confidence residual scanning after scrub, and optional
+flag-gated machine/path/command/certificate finders (scrub extensions).
 """
 
 from __future__ import annotations
@@ -61,6 +62,46 @@ DOB_LABELED_RE = re.compile(
 EMAIL_RE = re.compile(
     r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
     re.IGNORECASE,
+)
+
+# --- Opt-in scrub extensions (default off via CLI) ---
+MAX_PEM_BLOCK_CHARS = 65536
+MAX_CMD_LINE_CHARS = 500
+
+_PSEUDO_SCRUB_PREFIXES = (
+    "MACHINE_",
+    "PATH_",
+    "CMD_",
+    "CERT_",
+)
+
+LABELED_MACHINE_RE = re.compile(
+    r"(?i)(\b(?:hostname|host|machine(?:-|\s)?name|computer(?:\s+name)?)\s*[:=]\s*)"
+    r"([A-Za-z0-9][A-Za-z0-9._-]{0,62})"
+)
+
+WIN_ABS_PATH_RE = re.compile(
+    r"(?<![@\w])([A-Za-z]:\\(?:[^\s\"'<>|\r\n]+\\?)+)"
+)
+
+UNIX_ABS_PATH_RE = re.compile(
+    r"(?<![@\w:])(/(?:home|Users|tmp|opt|var|mnt)/[^\s\"'<>|\r\n]+)"
+)
+
+CMD_LINE_RE = re.compile(
+    r"(?im)^(?:[\$>]+\s*)?"
+    r"(?:py(?:thon)?(?:\s+-3)?|powershell|pwsh|Get-Content|curl|git|npm|node|bash|sh)\b"
+    r"[^\n]{0," + str(MAX_CMD_LINE_CHARS) + r"}"
+)
+
+_PEM_BEGIN_LINE_RE = re.compile(r"^-----BEGIN [A-Z0-9 ]+-----$")
+_PEM_END_LINE_RE = re.compile(r"^-----END [A-Z0-9 ]+-----$")
+
+# Risk-only heuristic (looks_like_sensitive_technical_paste) — keep in sync with scrub heuristics above.
+PEM_BEGIN_MARKER = "-----BEGIN "
+CMD_RISK_RE = CMD_LINE_RE
+LABELED_MACHINE_RISK_RE = re.compile(
+    r"(?i)\b(?:hostname|host|machine(?:-|\s)?name|computer(?:\s+name)?)\s*[:=]\s*\S"
 )
 
 
@@ -238,3 +279,96 @@ def scan_residuals(
         report.postcodes = find_nl_postcodes(text) + find_bare_nl_postcodes(text)
         report.dobs = find_labeled_dobs(text)
     return report
+
+
+def _is_scrubbed_token(value: str) -> bool:
+    if not value:
+        return False
+    upper = value.upper()
+    return any(upper.startswith(prefix) for prefix in _PSEUDO_SCRUB_PREFIXES)
+
+
+def find_labeled_machines(text: str) -> list[str]:
+    """Labeled hostname/machine fields only (value token, not the label)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in LABELED_MACHINE_RE.finditer(text):
+        val = m.group(2)
+        if _is_scrubbed_token(val) or val in seen:
+            continue
+        seen.add(val)
+        out.append(val)
+    return out
+
+
+def find_absolute_paths(text: str) -> list[str]:
+    """Absolute Windows/Unix paths only; skips already-scrubbed PATH tokens."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for pattern in (WIN_ABS_PATH_RE, UNIX_ABS_PATH_RE):
+        for m in pattern.finditer(text):
+            val = m.group(1)
+            if _is_scrubbed_token(val) or val in seen:
+                continue
+            seen.add(val)
+            out.append(val)
+    return out
+
+
+def find_command_lines(text: str) -> list[str]:
+    """Command-like whole lines (bounded length); skips CMD pseudo tokens."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in CMD_LINE_RE.finditer(text):
+        val = m.group(0).strip()
+        if not val or _is_scrubbed_token(val) or val in seen:
+            continue
+        seen.add(val)
+        out.append(val)
+    return out
+
+
+def find_pem_blocks(text: str) -> list[str]:
+    """Whole PEM blocks (BEGIN … END inclusive); bounded size per block."""
+    blocks: list[str] = []
+    lines = text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        line_stripped = lines[i].strip("\r\n")
+        if not _PEM_BEGIN_LINE_RE.match(line_stripped):
+            i += 1
+            continue
+        block_parts = [lines[i]]
+        i += 1
+        found_end = False
+        while i < len(lines):
+            block_parts.append(lines[i])
+            line_stripped = lines[i].strip("\r\n")
+            if _PEM_END_LINE_RE.match(line_stripped):
+                found_end = True
+                i += 1
+                break
+            i += 1
+        if not found_end:
+            continue
+        block = "".join(block_parts)
+        if len(block) > MAX_PEM_BLOCK_CHARS:
+            continue
+        if block not in blocks:
+            blocks.append(block)
+    return blocks
+
+
+def looks_like_sensitive_technical_paste(text: str) -> bool:
+    """Pre-scrub risk heuristic: PEM, command lines, labeled hostnames, absolute paths."""
+    if not text:
+        return False
+    if PEM_BEGIN_MARKER in text:
+        return True
+    if CMD_RISK_RE.search(text):
+        return True
+    if LABELED_MACHINE_RISK_RE.search(text):
+        return True
+    if WIN_ABS_PATH_RE.search(text) or UNIX_ABS_PATH_RE.search(text):
+        return True
+    return False

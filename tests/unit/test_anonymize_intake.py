@@ -155,6 +155,177 @@ def test_also_ip(mod, pii_map, allowlist):
     assert "2001:db8::" in result.text.lower()
 
 
+def test_also_machines_off_by_default(mod, pii_map, allowlist):
+    text = "hostname: host-a.example.invalid\n"
+    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    assert "host-a.example.invalid" in result.text
+    assert "MACHINE_" not in result.text
+
+
+def test_also_machines_scrubs_labeled_field(mod, pii_map, allowlist):
+    text = "host= host-a.example.invalid\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_machines=True
+    )
+    assert "host-a.example.invalid" not in result.text
+    assert "MACHINE_001" in result.text
+    assert "host=" in result.text
+
+
+def test_also_paths_off_by_default(mod, pii_map, allowlist):
+    text = r"Log at C:\Users\secret\export.xml\n"
+    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    assert r"C:\Users\secret\export.xml" in result.text
+
+
+def test_also_paths_scrubs_windows_and_unix(mod, pii_map, allowlist):
+    text = (
+        r"win C:\Users\secret\export.xml\n"
+        "unix /home/secret/export.xml\n"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_paths=True
+    )
+    assert "secret" not in result.text
+    assert "PATH_001" in result.text
+    assert "PATH_002" in result.text
+
+
+def test_also_commands_off_by_default(mod, pii_map, allowlist):
+    text = "py -3 scripts/anonymize_intake.py inbox/raw\n"
+    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    assert "anonymize_intake.py" in result.text
+
+
+def test_also_commands_scrubs_command_line(mod, pii_map, allowlist):
+    text = "py -3 scripts/anonymize_intake.py inbox/raw\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_commands=True
+    )
+    assert "anonymize_intake.py" not in result.text
+    assert "CMD_001" in result.text
+
+
+def test_also_certificates_whole_pem_block(mod, pii_map, allowlist):
+    pem = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "MIIBkTCB+wIBADANBgkqhkiG9w0BAQEFAASC\n"
+        "-----END CERTIFICATE-----\n"
+    )
+    text = f"cert:\n{pem}tail\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=True
+    )
+    assert "BEGIN CERTIFICATE" not in result.text
+    assert "MIIBkTCB" not in result.text
+    assert "CERT_001" in result.text
+    assert result.text.count("CERT_001") == 1
+
+
+def test_also_certificates_multiple_pem_blocks(mod, pii_map, allowlist):
+    pem1 = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "AAAA\n"
+        "-----END CERTIFICATE-----\n"
+    )
+    pem2 = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "BBBB\n"
+        "-----END CERTIFICATE-----\n"
+    )
+    text = pem1 + "between\n" + pem2
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=True
+    )
+    assert "BEGIN CERTIFICATE" not in result.text
+    assert "AAAA" not in result.text
+    assert "BBBB" not in result.text
+    assert "CERT_001" in result.text
+    assert "CERT_002" in result.text
+
+
+def test_also_certificates_off_by_default(mod, pii_map, allowlist):
+    pem = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "MIIBkTCB+wIBADANBgkqhkiG9w0BAQEFAASC\n"
+        "-----END CERTIFICATE-----\n"
+    )
+    result = mod.anonymize_text(
+        pem, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=False
+    )
+    assert "BEGIN CERTIFICATE" in result.text
+
+
+def test_technical_tokens_map_stable_across_runs(mod, tmp_path, allowlist):
+    map_path = tmp_path / "pii-map.json"
+    text = "hostname: host-a\n"
+    m1 = mod.PiiMap.load(map_path)
+    r1 = mod.anonymize_text(
+        text, pii_map=m1, allowlist=allowlist, also_ip=False, also_machines=True
+    )
+    m1.save()
+    m2 = mod.PiiMap.load(map_path)
+    r2 = mod.anonymize_text(
+        text, pii_map=m2, allowlist=allowlist, also_ip=False, also_machines=True
+    )
+    assert r1.text == r2.text
+    assert "host-a" in json.loads(map_path.read_text(encoding="utf-8"))["machines"]
+
+
+@pytest.mark.parametrize(
+    "text,flags,store_key,plaintext_fragment",
+    [
+        ("hostname: host-a\n", {"also_machines": True}, "machines", "host-a"),
+        (
+            r"see C:\Users\x\secret.txt\n",
+            {"also_paths": True},
+            "paths",
+            r"C:\Users\x\secret.txt",
+        ),
+        (
+            "py -3 scripts/foo.py inbox/raw\n",
+            {"also_commands": True},
+            "commands",
+            "scripts/foo.py",
+        ),
+        (
+            "-----BEGIN CERTIFICATE-----\nZZ\n-----END CERTIFICATE-----\n",
+            {"also_certificates": True},
+            "certs",
+            "BEGIN CERTIFICATE",
+        ),
+    ],
+)
+def test_technical_token_map_stable_per_kind(
+    mod, tmp_path, allowlist, text, flags, store_key, plaintext_fragment
+):
+    map_path = tmp_path / "pii-map.json"
+    m1 = mod.PiiMap.load(map_path)
+    r1 = mod.anonymize_text(
+        text, pii_map=m1, allowlist=allowlist, also_ip=False, **flags
+    )
+    m1.save()
+    m2 = mod.PiiMap.load(map_path)
+    r2 = mod.anonymize_text(
+        text, pii_map=m2, allowlist=allowlist, also_ip=False, **flags
+    )
+    assert r1.text == r2.text
+    data = json.loads(map_path.read_text(encoding="utf-8"))
+    assert data[store_key]
+    assert any(plaintext_fragment in k for k in data[store_key])
+
+
+def test_technical_scrub_adversarial_long_string_bounded(mod, pii_map, allowlist):
+    long_noise = "x" * 50000
+    text = f"hostname: short-host\n{long_noise}\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_machines=True
+    )
+    assert "short-host" not in result.text
+    assert "MACHINE_001" in result.text
+    assert len(result.text) > 40000
+
+
 def test_map_stable_across_runs(mod, tmp_path, allowlist):
     map_path = tmp_path / "pii-map.json"
     m1 = mod.PiiMap.load(map_path)
@@ -629,6 +800,66 @@ def test_promote_clears_staging_keeps_story(mod, tmp_path, monkeypatch, capsys):
     files = data.get("files", {})
     assert "src/stories/STORY-9900/intake-clean/drop.md" in files
     assert not any(k.replace("\\", "/").startswith("inbox/clean/") for k in files)
+
+
+def test_cli_also_technical_scrubs_and_writes(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+    content = (
+        "host= secret-box\n"
+        r"log C:\Users\secret\export.xml" + "\n\n"
+        + pem
+        + "\npy -3 scripts/foo.py\n"
+    )
+    (raw / "tech.log").write_text(content, encoding="utf-8")
+    code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--also-technical"]))
+    assert code == 0
+    capsys.readouterr()
+    out_text = (clean / "tech.log").read_text(encoding="utf-8")
+    assert "secret" not in out_text.lower()
+    assert "BEGIN CERTIFICATE" not in out_text
+    assert "foo.py" not in out_text
+    assert "MACHINE_" in out_text
+    assert "PATH_" in out_text
+    assert "CMD_" in out_text
+    assert "CERT_" in out_text
+
+
+def test_cli_also_technical_bundle_sets_flags(mod, tmp_path, monkeypatch):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    parser = mod.build_parser()
+    args = parser.parse_args(
+        _write_argv(raw, tmp_path, allow, extra=["--also-technical"])
+    )
+    mod._apply_also_technical(args)
+    assert args.also_machines is True
+    assert args.also_paths is True
+    assert args.also_commands is True
+    assert args.also_certificates is True
+
+
+def test_cli_also_technical_with_promote(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+    (raw / "tech.log").write_text(
+        "host= secret-box\n" + pem,
+        encoding="utf-8",
+    )
+    code = mod.main(
+        _write_argv(
+            raw,
+            tmp_path,
+            allow,
+            extra=["--also-technical", "--promote", "STORY-9900"],
+        )
+    )
+    assert code == 0
+    capsys.readouterr()
+    promoted = tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "tech.log"
+    assert promoted.is_file()
+    out_text = promoted.read_text(encoding="utf-8")
+    assert "secret" not in out_text.lower()
+    assert "CERT_" in out_text
 
 
 def test_keep_clean_promote_leaves_staging(mod, tmp_path, monkeypatch, capsys):

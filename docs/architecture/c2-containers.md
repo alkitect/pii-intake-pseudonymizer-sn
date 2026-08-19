@@ -1,52 +1,87 @@
-# C2 Containers — ServiceNow workflow
+# C2 Containers — PII intake pseudonymizer
 
-Extends the [generic C2 containers](https://github.com/alkitect/pii-intake-pseudonymizer/blob/v0.1.0/docs/architecture/c2-containers.md) with inbox layout and manifest.
+## Overview
 
-## Additional containers
+Deployable boundaries on a single machine. No network port; “containers” are the **CLI process**, **optional NER plugin**, **config policy files**, and **on-disk stores**.
 
-### Quarantine (`inbox/raw`)
+## Technology
 
-Gitignored drop zone. Successful text writes delete scrubbed raw files unless `--keep-raw`. Binaries skipped.
+- Python 3 CLI
+- Base dependency: PyCA `cryptography` (`requirements-pii.txt`)
+- Optional: Presidio + spaCy (`requirements-pii-ner.txt`) when `--ner` is on
 
-### Staging (`inbox/clean`)
+## Containers
 
-This-run output only. Pruned after write; cleared after `--promote` unless `--keep-clean`.
+### Pseudonymizer CLI
 
-### Story intake-clean
+- **Package:** `scripts/anonymize_intake.py` (+ detectors, map crypto, optional NER)
+- **Responsibilities:** Tokenize text (Layer 1 + optional Layer 1b technical flags); residual fail-closed before write; encrypted map; default agent-safe stdout; optional `--summary` detect-only
+- **Data:** Source text, encrypted map, written output tree
 
-`src/stories/<STORY-id>/intake-clean/` — durable copy after `--promote`.
+### NER plugin (opt-in)
 
-### Intake manifest (`.local/intake-manifest.json`)
+- **Package:** `scripts/pii_ner.py`, `config/pii-ner.json`
+- **Responsibilities:** Free-text PERSON via Presidio when `--ner` and extras are present
+- **Default:** off; reports `ner=skipped` when extras absent
 
-SHA-256 registry written by `intake_manifest.py` after successful pseudonymize / promote.
+### Policy config
+
+- **Package:** `config/pii-allowlist.txt`, `pii-org-scrub.txt`, `pii-person-fields.json`
+- **Purpose:** Functional allowlist; org name scrub list; structured person-field harvest rules
+
+### Input store
+
+- **Default:** `input/` (or any path passed on the command line)
+- **Role:** Source files before pseudonymization
+
+### Output store
+
+- **Default:** `output/` mirror of relative paths
+- **Role:** Pseudonymized artifacts for downstream use
+
+### Local ciphertext (`.local/`)
+
+- **Files:** `pii-map.json` (encrypted), optional `pii-map-audit.jsonl`
+- **Role:** Reversible token store; may include `machines`, `paths`, `commands`, and `certs` map stores when technical flags are used; never commit
+
+### Map key store (outside sync)
+
+- **Resolution:** `PII_MAP_KEY`, `PII_MAP_KEY_FILE`, or platform default under `%LOCALAPPDATA%/ServiceNow-PII/` / `~/.config/servicenow-pii/`
+- **Rule:** Key file must not live next to the map under a cloud-synced repo root
 
 ## Container diagram
 
 ```mermaid
 flowchart LR
   human[Human]
-  raw[inbox_raw]
-  cli[CLI]
-  clean[inbox_clean]
-  manifest[Manifest]
-  story[intake_clean]
-  map[Encrypted_map]
-  human --> raw --> cli --> clean
-  cli --> manifest
-  cli --> map
-  clean -->|promote| story
+  input[input_store]
+  cli[Pseudonymizer_CLI]
+  ner[NER_plugin_opt_in]
+  cfg[Policy_config]
+  output[Output_store]
+  local[dot_local_map]
+  keyOff[Key_outside_sync]
+  human --> input
+  human --> cli
+  cli --> cfg
+  cli -.-> ner
+  cli --> output
+  cli --> local
+  keyOff -.-> local
 ```
 
-## Mode split
+## Relationships
 
-| Mode | Path | Purpose |
-|------|------|---------|
-| Intake write | `inbox/raw` | Pseudonymize quarantine |
-| Commit gate | `src/stories/...` | `--summary` detect-only |
-
-See [ADR-004](../decisions/ADR-004-intake-vs-commit-gate.md).
+| From | To | Purpose |
+|------|-----|---------|
+| Human | CLI | Run detect-only or write passes |
+| CLI | Input / output | Read sources; write pseudonymized mirror |
+| CLI | `.local/` | Encrypted map read/write on mutating passes |
+| CLI | Key store | Encrypt/decrypt map |
+| CLI | NER plugin | Optional Layer 2 PERSON (only when `--ner`) |
 
 ## Related
 
 - [C1 Context](c1-context.md)
 - [C3 CLI components](c3-cli-components.md)
+- [ADR-002 Map encryption](../decisions/ADR-002-map-encryption-key-separation.md)

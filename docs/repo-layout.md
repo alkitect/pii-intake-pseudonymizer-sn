@@ -23,7 +23,7 @@ repo-root/
 
 | Path | Safe for collaborators / CI? | CLI default |
 |------|------------------------------|-------------|
-| `inbox/raw/` | **No** — treat as hot quarantine | Default intake target |
+| `inbox/raw/` | **No** — treat as hot quarantine | Default intake target; default scrub leaves hostnames/paths/commands/PEM — use **`--also-technical`** for log/PEM drops |
 | `inbox/clean/` | After successful write only | Default output staging |
 | `src/stories/**/docs/` | Yes, after pseudonymization | `--summary` commit gate |
 | `src/stories/**/intake-clean/` | Yes, when promoted | `--promote STORY-id` |

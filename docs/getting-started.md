@@ -57,6 +57,14 @@ Omit `--promote STORY-1000` if you only need `inbox/clean/` staging.
 
 Output lands in `inbox/clean/` with stable tokens. Raw text sources are deleted after successful write unless `--keep-raw`.
 
+When drops contain hostnames, paths, shell lines, or PEM blocks, add **`--also-technical`** on the write pass:
+
+```bash
+pii-intake-pseudonymizer-sn inbox/raw --also-technical --promote STORY-1000
+```
+
+Default scrub leaves those technical categories intact. See [CLI reference](cli-reference.md).
+
 ## Map key
 
 ```bash

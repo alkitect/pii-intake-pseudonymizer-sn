@@ -9,5 +9,6 @@
 | Intake manifest | None | `.local/intake-manifest.json` |
 | Commit gate helper | Optional `pii_commit_gate.py` (needs `src/stories/`) | Same + [commit gate](commit-gate.md) docs |
 | Cursor / editor hooks | Not shipped (CLI only) | Not shipped (CLI only) |
+| Technical scrub flags | `--also-*` + **`--also-technical`** (shared engine, default off) | Same |
 
 Pick **generic** for ad-hoc folders. Pick **SN** when your repo already uses inbox quarantine + story trees.

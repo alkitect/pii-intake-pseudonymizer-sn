@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Added
 
+- Opt-in technical scrub: `--also-machines`, `--also-paths`, `--also-commands`, `--also-certificates`, and **`--also-technical`** bundle (default off; shared engine with generic product)
 - Documentation set: getting started, repo layout, commit gate, architecture (C4), ADRs, CLI reference, security
 - `scripts/intake_manifest.py` for clean-output checksum registry
 - `SECURITY.md`, product comparison, examples index

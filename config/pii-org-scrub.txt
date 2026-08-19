@@ -1,0 +1,7 @@
+# Company / import / product names to scrub → ORG_NNN (case-insensitive).
+# One per line. Default on via --scrub-orgs (use --no-scrub-orgs to disable).
+# Prefer import/product labels and org brands — not personal names (those use PERSON_*).
+# Add new CMDB import sheet names here as you encounter them.
+
+ExampleOrgA
+ExampleOrgB

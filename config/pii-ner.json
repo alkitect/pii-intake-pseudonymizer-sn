@@ -1,0 +1,6 @@
+{
+  "entities": ["PERSON"],
+  "language": "en",
+  "score_threshold": 0.5,
+  "notes": "Opt-in via --ner. Hooks never import Presidio. Allowlist Script Include names in config/pii-allowlist.txt."
+}

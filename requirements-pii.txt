@@ -1,0 +1,5 @@
+# Base PII intake deps (agent-safe offline scrub + encrypted map).
+# Audit: PyCA cryptography (NOT pycrypto / pycryptodome typosquats).
+# Install (human): py -3 -m pip install -r requirements-pii.txt
+# Agents must NOT auto-pip.
+cryptography==46.0.0

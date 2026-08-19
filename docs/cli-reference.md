@@ -18,14 +18,14 @@ Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). Generic equivalen
 | Category | Flags |
 |----------|-------|
 | Modes | `--dry-run`, `--summary`, `--per-file-summary`, `--fail-on-hits`, `--report`, `--in-place` |
-| Detection | `--ner`, `--also-ip`, `--also-nl-id`, `--also-p2`, `--harvest-names`, `--scrub-orgs` |
+| Detection | `--ner`, `--also-ip`, `--also-machines`, `--also-paths`, `--also-commands`, `--also-certificates`, **`--also-technical`**, `--also-nl-id`, `--also-p2`, `--harvest-names`, `--scrub-orgs` |
 | Map | `--map`, `--map-migrate`, `--map-rollback`, `--map-prune-unused`, `--irreversible`, `--map-audit` |
 | Layout | `--out`, `--force-path`, `--keep-raw`, `--keep-clean` |
 | Config | `--allowlist`, `--org-list` |
 
 > **`--report`** prints original PII. Human interactive use only — never in CI or shared logs.
 
-Full flag descriptions: [generic CLI reference](https://github.com/alkitect/pii-intake-pseudonymizer/blob/v0.1.0/docs/cli-reference.md) (same engine; SN adds `--promote` and different defaults).
+Full flag descriptions and **What is replaced** table: [generic CLI reference](https://github.com/alkitect/pii-intake-pseudonymizer/blob/main/docs/cli-reference.md) (same engine; SN adds `--promote` and different defaults). Technical categories (`MACHINE_NNN`, `PATH_NNN`, `CMD_NNN`, `CERT_NNN`) require **`--also-technical`** or individual `--also-*` flags — default off.
 
 ## Gate vs intake
 
@@ -42,6 +42,9 @@ pii-intake-pseudonymizer-sn inbox/raw --dry-run
 
 # Intake + promote (key required)
 pii-intake-pseudonymizer-sn inbox/raw --promote STORY-1000
+
+# Infra-heavy log/PEM drops
+pii-intake-pseudonymizer-sn inbox/raw --also-technical --promote STORY-1000
 
 # Commit gate on docs
 pii-intake-pseudonymizer-sn src/stories/STORY-1000/docs --summary

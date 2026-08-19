@@ -1,49 +1,52 @@
-# C1 Context — PII intake pseudonymizer (ServiceNow workflow)
+# C1 Context — PII intake pseudonymizer
 
 ## Overview
 
-Local offline pipeline for **ServiceNow / Jira story monorepos**: quarantine exports in `inbox/raw/`, pseudonymize to `inbox/clean/`, optionally promote into `src/stories/<STORY-id>/`, and run detect-only gates on committed story docs.
+A **local developer-workstation** tool that replaces common identifiers in text files with **stable pseudonyms** before those files are shared, tested, or analyzed further. It runs offline; it does not call ServiceNow or other cloud APIs at runtime.
 
-Does not modify ServiceNow instance records at runtime.
+Mapped tokens (`PERSON_001`, `user_001@example.test`, …) are **pseudonyms**, not anonymous data: a reversible encrypted map exists when you use the default write mode. See [ADR-001](../decisions/ADR-001-pseudonymization-naming-and-detection.md).
 
 ## System boundary
 
-- **In scope:** `inbox/`, `src/stories/`, `.local/` map + manifest, CLI
-- **Out of scope:** Cursor/IDE hooks (not shipped in this public repo); org CI; certified compliance
+- **In scope:** Local text/markdown/XML/JSON/CSV paths; encrypted map under `.local/`; config under `config/`
+- **Out of scope:** Certified compliance de-identification; scrubbing git history; cloud redaction APIs; binary document conversion; automatic technical scrub without explicit `--also-*` flags
 
 ## Actors
 
-### Human developer
+### Human operator
 
-Drops exports into `inbox/raw/`, runs write passes and optional `--promote`, runs `--summary` on story docs before commit, manages encryption key off sync.
+Drops exports into `input/` (or custom paths), manages the map encryption key, runs detect-only scans before writes, optionally enables `--ner`, **`--also-technical`** (or individual `--also-*` flags) for infra-heavy exports, or human-only flags (`--report`, `--irreversible`, `--map-prune-unused`).
 
-### Story repo consumers
+### Downstream consumer
 
-Collaborators and CI read pseudonymized `src/stories` content — never raw quarantine.
+Reads pseudonymized files from `output/` (or custom `--out`). Must not receive the map key if re-identification must remain impossible.
 
 ## External systems
 
 | System | Relationship |
 |--------|--------------|
-| ServiceNow / Jira | Source of exports; no API calls from this tool |
-| Cloud sync | May sync repo; key outside sync; exclude `.local` when possible |
+| Source applications (ServiceNow, Jira, mail) | Export files **out**; this tool only sees local copies |
+| Cloud sync (OneDrive, etc.) | May sync project tree; **key must stay outside** sync root; see [Security](../security.md) |
+| Optional NER models (Presidio/spaCy) | Installed locally when `--ner` is used |
 
 ## Context diagram
 
 ```mermaid
 flowchart LR
-  human[Human_developer]
-  sn[SN_Jira_exports]
-  repo[Story_monorepo]
-  cli[pii_intake_pseudonymizer_sn]
-  sn -->|export| human
-  human -->|inbox_raw| repo
-  human --> cli
-  cli -->|inbox_clean_promote| repo
+  human[Human_operator]
+  consumer[Downstream_reader]
+  tool[PII_intake_pseudonymizer]
+  exports[Local_exports]
+  sync[Cloud_sync_optional]
+  keyStore[Key_outside_sync]
+  exports --> human
+  human -->|drop_detect_write| tool
+  tool -->|pseudonymized_files| consumer
+  tool -.->|ciphertext_may_sync| sync
+  keyStore -.->|Fernet_key| tool
 ```
 
 ## Related
 
 - [C2 Containers](c2-containers.md)
-- [Repo layout](../repo-layout.md)
-- Generic context: [pii-intake-pseudonymizer C1](https://github.com/alkitect/pii-intake-pseudonymizer/blob/v0.1.0/docs/architecture/c1-context.md)
+- [C3 CLI components](c3-cli-components.md)

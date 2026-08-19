@@ -31,7 +31,11 @@ pii-intake-pseudonymizer-sn src/stories --summary
 
 - Email and high-confidence residual patterns
 - Harvested / seeded person-name hits
-- **Not** a guarantee of zero PII (NER off by default; no git history scrub)
+- **Not** a guarantee of zero PII (NER off by default; no git history scrub; **no technical scrub** — hostnames, paths, commands, PEM require **`--also-technical`** on the intake write pass, not on `--summary`)
+
+## Technical scrub vs commit gate
+
+`--summary` on `src/stories/` does **not** enable machine/path/command/certificate replacement. When intake exports contain logs, PEM, or shell snippets, run a write pass on `inbox/raw` with **`--also-technical`** (or individual `--also-*` flags) before promote.
 
 ## Staged git index scan
 

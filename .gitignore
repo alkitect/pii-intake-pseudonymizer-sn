@@ -1,0 +1,22 @@
+# Local PII map + staging directories (must never be committed)
+.local/
+inbox/
+input/
+output/
+pii-map.json
+pii-map.json.bak
+pii-map-audit.jsonl
+intake-manifest.json
+*.key
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+

@@ -1,0 +1,63 @@
+{
+  "xml_display_tags": [
+    "opened_by",
+    "requested_for",
+    "caller_id",
+    "assigned_to",
+    "consumer",
+    "closed_by",
+    "contact",
+    "watch_list",
+    "sys_created_by",
+    "sys_updated_by",
+    "u_requested_for",
+    "u_caller"
+  ],
+  "json_display_keys": [
+    "opened_by",
+    "requested_for",
+    "caller_id",
+    "assigned_to",
+    "consumer",
+    "closed_by",
+    "contact",
+    "watch_list"
+  ],
+  "csv_person_headers": [
+    "naam",
+    "name",
+    "full_name",
+    "fullname",
+    "caller",
+    "caller_id",
+    "reporter",
+    "reporters",
+    "stakeholder",
+    "stakeholders",
+    "assignee",
+    "assigned_to",
+    "opened_by",
+    "requested_for",
+    "contact",
+    "consumer",
+    "watch_list"
+  ],
+  "person_field_labels": [
+    "reporter",
+    "reporters",
+    "stakeholder",
+    "stakeholders",
+    "assignee",
+    "assignees",
+    "assigned to",
+    "opened by",
+    "requested for",
+    "caller",
+    "caller id",
+    "consumer",
+    "contact",
+    "submitted by",
+    "watch list",
+    "reported by"
+  ]
+}

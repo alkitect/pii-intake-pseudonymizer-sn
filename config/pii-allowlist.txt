@@ -1,0 +1,15 @@
+# Functional / non-personal addresses and service accounts (one per line).
+# Matching is case-insensitive. Lines starting with # are ignored.
+#
+# IMPORTANT (public GitHub release):
+# This file must not contain org-specific inboxes/identifiers.
+# Replace the example addresses below with your own org's non-personal mailboxes.
+system
+guest
+admin
+
+# Example functional / shared mailboxes:
+noreply@example.invalid
+serviceportal@example.invalid
+helpdesk@example.invalid
+shared-mailbox@example.invalid

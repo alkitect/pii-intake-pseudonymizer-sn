@@ -1,0 +1,19 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: bash -n
+        run: find scripts -type f -name '*.sh' -print0 | xargs -0 -r bash -n
+      - name: ci-check
+        run: ./scripts/ci-check.sh
+

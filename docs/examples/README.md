@@ -14,8 +14,16 @@ Synthetic fixture used by unit tests — safe to read (no real PII):
 - Command-like lines (when `--also-commands` or `--also-technical`) → `CMD_001`
 - PEM blocks (when `--also-certificates` or `--also-technical`) → `CERT_001`
 
-Run detect-only on a copy under `input/`:
+Intake preview (no writes) on a copy under `inbox/raw/`:
 
 ```bash
-pii-intake-pseudonymizer input --summary
+pii-intake-pseudonymizer-sn inbox/raw --dry-run
 ```
+
+Commit gate (detect-only) on story docs:
+
+```bash
+pii-intake-pseudonymizer-sn src/stories/STORY-1000/docs --summary
+```
+
+Generic layout (`input/` → `output/`): [pii-intake-pseudonymizer examples](https://github.com/alkitect/pii-intake-pseudonymizer/blob/main/docs/examples/README.md).

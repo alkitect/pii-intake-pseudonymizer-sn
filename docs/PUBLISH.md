@@ -1,6 +1,6 @@
 # Publish notes
 
-Before tag: README must pass `./scripts/ci-check.sh`. See [CONTRIBUTING.md](../CONTRIBUTING.md) § README conventions.
+Before tag: README must pass `bash scripts/ci-check.sh`. See [CONTRIBUTING.md](../CONTRIBUTING.md) § README conventions.
 
 First public tag: v0.1.0
 

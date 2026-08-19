@@ -31,8 +31,11 @@ Output with a persisted map is **pseudonymization** (reversible with the key). U
 
 1. **Never** commit `.local/pii-map.json`, key files, or `.bak` maps.
 2. Store `PII_MAP_KEY` / `PII_MAP_KEY_FILE` **outside** cloud-synced project folders when possible.
-3. Ciphertext under sync is less useful without the key, but pre-migrate plaintext may remain in cloud **version history** — migrate early or exclude `.local` from sync.
-4. Back up the key separately from the map; lost key ⇒ unreadable map.
+3. Prefer **`PII_MAP_KEY_FILE`** over inline `PII_MAP_KEY` in shells (history, crash dumps).
+4. **Platform default auto-load:** if `%LOCALAPPDATA%/ServiceNow-PII/pii-map.key` (Windows) or `~/.config/servicenow-pii/pii-map.key` (Unix) exists, the CLI uses it without env vars — avoid accidental cross-project reuse on shared machines.
+5. Ciphertext under sync is less useful without the key, but pre-migrate plaintext may remain in cloud **version history** — migrate early or exclude `.local` from sync.
+6. Back up the key separately from the map; lost key ⇒ unreadable map.
+7. No OS keyring integration — env/file (and Windows DPAPI-wrapped files when created by tooling) only.
 
 ## Operational safety modes
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "plan",
+  "mcp": {
+    "grepai": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\grepai\\grepai.exe",
+        "mcp-serve",
+        "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn"
+      ],
+      "timeout": 60000
+    },
+    "serena": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\serena\\serena-mcp.cmd",
+        "--context",
+        "ide",
+        "--log-level",
+        "WARNING"
+      ],
+      "cwd": "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn",
+      "timeout": 180000
+    },
+    "codegraph": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\codegraph-npm\\codegraph.cmd",
+        "serve",
+        "--mcp",
+        "--path",
+        "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn"
+      ]
+    },
+    "context7": {
+      "type": "local",
+      "enabled": false,
+      "command": [
+        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\NodeJS\\npx.cmd",
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  },
+  "tools": {
+    "grep": false,
+    "glob": false
+  }
+}

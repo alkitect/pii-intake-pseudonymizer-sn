@@ -1,0 +1,44 @@
+# Normalize text to LF in the repo; avoid Windows CRLF phantom dirt on consumers.
+* text=auto eol=lf
+
+# Explicit text types
+*.py text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.mdc text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.sh text eol=lf
+*.cmd text eol=lf
+*.ps1 text eol=lf
+*.txt text eol=lf
+*.xml text eol=lf
+*.svg text eol=lf
+
+# Binaries
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.zip binary
+*.7z binary
+*.gz binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.doc binary
+*.pkl binary
+*.pyc binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

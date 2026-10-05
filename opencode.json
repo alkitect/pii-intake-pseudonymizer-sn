@@ -1,49 +1,45 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "plan",
+  "plans_directory": ".cursor/plans",
   "mcp": {
     "grepai": {
       "type": "local",
       "enabled": true,
       "command": [
-        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\grepai\\grepai.exe",
-        "mcp-serve",
-        "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn"
+        "grepai",
+        "mcp-serve"
       ],
-      "timeout": 60000
+      "cwd": "."
     },
     "serena": {
       "type": "local",
       "enabled": false,
       "command": [
-        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\serena\\serena-mcp.cmd",
+        "serena",
+        "start-mcp-server",
         "--context",
         "ide",
+        "--project-from-cwd",
         "--log-level",
         "WARNING"
       ],
-      "cwd": "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn",
-      "timeout": 180000
+      "cwd": "."
     },
     "codegraph": {
       "type": "local",
       "enabled": false,
       "command": [
-        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\codegraph-npm\\codegraph.cmd",
+        "codegraph",
         "serve",
-        "--mcp",
-        "--path",
-        "c:\\Users\\akrebbe1\\OneDrive - HvA\\workdir\\pii-intake-pseudonymizer-sn"
-      ]
+        "--mcp"
+      ],
+      "cwd": "."
     },
     "context7": {
-      "type": "local",
-      "enabled": false,
-      "command": [
-        "C:\\Users\\akrebbe1\\AppData\\Local\\Programs\\NodeJS\\npx.cmd",
-        "-y",
-        "@upstash/context7-mcp"
-      ]
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": false
     }
   },
   "tools": {

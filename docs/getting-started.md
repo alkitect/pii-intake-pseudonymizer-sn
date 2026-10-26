@@ -114,7 +114,6 @@ You are ready to push story docs when: promoted or edited files under `src/stori
 
 ## Next steps
 
-- [Product comparison](product-comparison.md)
+- [Layout assumptions](product-comparison.md)
 - [Configuration](configuration.md)
 - [Architecture](architecture/README.md)
-- Generic layout without story folders → [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer)

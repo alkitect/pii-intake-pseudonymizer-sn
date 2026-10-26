@@ -9,4 +9,4 @@
 
 Status: Accepted (2026-08).
 
-**Maintainer sync:** Edit ADR-001–003 in [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer) first; copy to this repo before tag. ADR-004 is SN-only.
+ADR-001–003 are shared engine decisions; edit them in this tree. ADR-004 is SN-layout only (intake vs commit gate).

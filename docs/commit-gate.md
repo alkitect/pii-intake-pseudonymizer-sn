@@ -55,7 +55,7 @@ Requirements: git repo, staged paths under `src/stories/`, no `PII_MAP_KEY`. Opt
 
 See [ADR-004](decisions/ADR-004-intake-vs-commit-gate.md) and [Security](security.md).
 
-Compare with the generic CLI: [product comparison](product-comparison.md).
+Layout and gate scope: [layout assumptions](product-comparison.md).
 
 ## Quarantine staging
 

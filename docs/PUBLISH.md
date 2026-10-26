@@ -4,7 +4,7 @@ Before tag: README must pass `bash scripts/ci-check.sh`. See [CONTRIBUTING.md](.
 
 First public tag: v0.1.0
 
-Current tag: v0.2.1
+Current tag: v0.2.2
 
 Repo URL: `https://github.com/alkitect/pii-intake-pseudonymizer-sn`
 
@@ -33,11 +33,11 @@ After GitHub is live:
 
 ```bash
 cd /path/to/Linux
-git submodule add -b v0.2.1 https://github.com/alkitect/pii-intake-pseudonymizer-sn.git public/pii-intake-pseudonymizer-sn
+git submodule add -b v0.2.2 https://github.com/alkitect/pii-intake-pseudonymizer-sn.git public/pii-intake-pseudonymizer-sn
 ```
 
-Pin submodule gitlink to tag `v0.2.1`, not `main`.
+Pin submodule gitlink to tag `v0.2.2`, not `main`.
 
-## ADR sync (shared with generic repo)
+## ADR edits
 
-Before tagging, copy ADR-001–003 from [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer). ADR-004 is SN-only — edit here, not in the generic repo.
+Edit ADR-001–004 in this tree before tagging. There is no public sibling extract to sync against right now.

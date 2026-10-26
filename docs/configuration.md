@@ -1,6 +1,6 @@
 # Configuration
 
-Same core settings as the [generic product](https://github.com/alkitect/pii-intake-pseudonymizer/blob/v0.1.0/docs/configuration.md), with ServiceNow layout defaults below.
+Map key, allowlist, and org scrub settings for this ServiceNow-layout extract.
 
 ## Environment variables
 

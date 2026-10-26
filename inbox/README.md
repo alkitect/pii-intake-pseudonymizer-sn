@@ -9,7 +9,7 @@ See [Getting started](../docs/getting-started.md) and [Security](../docs/securit
 
 | Path | Role |
 |------|------|
-| `raw/` | Unscrubbed drops (Jira, email, CSV/XML, …) |
+| `raw/` | Unscrubbed drops (ServiceNow XML, markdown, email/CSV text, …) |
 | `clean/` | This-run scrub staging (checksum-gated) |
 | `instance-upload/` | Combined Import XML bundles (**not** scrubbed) |
 

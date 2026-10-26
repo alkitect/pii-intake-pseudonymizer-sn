@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-10-26
+
+### Fixed
+
+- Quarantine `.gitkeep` keepers are truly empty (0 bytes); `ci-check` and the commit gate treat whitespace-only keepers as empty so CI no longer fails on a lone newline
+
 ## [0.2.0] - 2026-10-26
 
 ### Security
@@ -36,5 +42,6 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Shared pseudonymizer engine with generic [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer)
 - Install/verify wrappers and `ci-check.sh` release gate
 
+[0.2.1]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.1
 [0.2.0]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.1.0

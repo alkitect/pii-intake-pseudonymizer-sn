@@ -48,7 +48,7 @@ def _is_empty_quarantine_gitkeep(rel: str) -> bool:
     try:
         if not path.is_file():
             return True
-        return path.stat().st_size == 0
+        return path.stat().st_size == 0 or not path.read_bytes().strip()
     except OSError:
         return True
 

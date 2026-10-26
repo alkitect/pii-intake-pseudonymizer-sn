@@ -25,5 +25,3 @@ Commit gate (detect-only) on story docs:
 ```bash
 pii-intake-pseudonymizer-sn src/stories/STORY-1000/docs --summary
 ```
-
-Generic layout (`input/` → `output/`): [pii-intake-pseudonymizer examples](https://github.com/alkitect/pii-intake-pseudonymizer/blob/main/docs/examples/README.md).

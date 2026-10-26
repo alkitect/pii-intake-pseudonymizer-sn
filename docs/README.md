@@ -2,7 +2,7 @@
 
 | Doc | Purpose |
 |-----|---------|
-| [Product comparison](product-comparison.md) | Generic vs ServiceNow — which repo to use |
+| [Layout assumptions](product-comparison.md) | Inbox + story tree this product expects |
 | [Getting started](getting-started.md) | First run, inbox workflow, promote |
 | [Repo layout](repo-layout.md) | `inbox/raw`, `inbox/clean`, `src/stories` |
 | [Commit gate](commit-gate.md) | Detect-only scan before commit |
@@ -14,5 +14,3 @@
 | [Architecture](architecture/README.md) | C4 hub (context → containers → CLI) |
 | [Architecture decisions](decisions/README.md) | ADRs |
 | [Publish notes](PUBLISH.md) | Maintainer: GitHub release checklist |
-
-**Related product:** [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer) — generic `input/` → `output/` layout.

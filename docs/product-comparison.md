@@ -1,16 +1,16 @@
-# Product comparison — generic vs ServiceNow
+# Layout assumptions (this product)
 
-> **Maintainers:** edit the generic repo copy first; sync the table row to the SN repo before tagging.
+This extract is for ServiceNow-style story monorepos. It is not a general-purpose folder scrubber with a separate public sibling at this time.
 
-| Topic | [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer) | [pii-intake-pseudonymizer-sn](https://github.com/alkitect/pii-intake-pseudonymizer-sn) |
-|-------|---------------------|------------------------|
-| Default I/O | `input/` → `output/` | `inbox/raw/` → `inbox/clean/` |
-| Story layout | Optional (any paths) | `src/stories/<STORY-id>/` |
-| `--summary` scope | Any path except `.local/` | **`src/stories/` only** — refused on `inbox/raw` |
-| Post-write copy | `--copy-to DEST` → `DEST/intake-clean/` | `--promote STORY-id` → `src/stories/.../intake-clean/` |
-| Intake manifest | None | `.local/intake-manifest.json` |
-| Commit gate helper | Optional `pii_commit_gate.py` (needs `src/stories/`) | Same + [commit gate](commit-gate.md) docs |
-| Cursor / editor hooks | Not shipped (CLI only) | Not shipped (CLI only) |
-| Technical scrub flags | `--also-*` + **`--also-technical`** (shared engine, default off) | Same |
+| Topic | This product |
+|-------|--------------|
+| Default I/O | `inbox/raw/` → `inbox/clean/` |
+| Story layout | `src/stories/<STORY-id>/` |
+| `--summary` scope | `src/stories/` only (refused on `inbox/raw`) |
+| Post-write copy | `--promote STORY-id` → `src/stories/.../intake-clean/` |
+| Intake manifest | `.local/intake-manifest.json` |
+| Commit gate | `pii_commit_gate.py` + [commit gate](commit-gate.md) docs |
+| Editor hooks | Not shipped (CLI only) |
+| Technical scrub | `--also-*` + `--also-technical` (default off) |
 
-Pick **generic** for ad-hoc folders. Pick **SN** when your repo already uses inbox quarantine + story trees.
+If your tree has no `inbox/` or `src/stories/`, you can still pass explicit paths to the CLI, but promote and the commit-gate docs assume the story layout above.

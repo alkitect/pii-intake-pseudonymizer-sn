@@ -48,6 +48,6 @@ flowchart LR
 
 Keep `inbox/raw/` and `.local/` out of git. Only pseudonymized story paths should reach shared remotes.
 
-## Generic alternative
+## Paths without a story tree
 
-If you do not use `inbox/` or `src/stories/`, use [pii-intake-pseudonymizer](https://github.com/alkitect/pii-intake-pseudonymizer) with `input/` and `output/` instead. SN uses `--promote STORY-id` instead of generic `--copy-to` — see [product comparison](product-comparison.md).
+You can pass explicit input/output paths to the CLI. Promote and the commit-gate docs still assume `src/stories/<STORY-id>/` when you use `--promote` or gate story docs. See [layout assumptions](product-comparison.md).

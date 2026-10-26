@@ -14,7 +14,7 @@ Defaults: read `inbox/raw/`, write `inbox/clean/`. See [Repo layout](repo-layout
 | `--promote-to PATH` | Merge verified staging into a repo-relative directory (refuses `inbox/` and `.local/`) |
 | _(default paths)_ | `inbox/raw` → `inbox/clean` when no paths given |
 
-Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). Generic equivalent: `--copy-to DEST` → `DEST/intake-clean/` — see [product comparison](product-comparison.md).
+Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). For a free-form destination directory, use `--promote-to PATH` (refuses `inbox/` and `.local/`).
 
 ## Shared flags (summary)
 
@@ -28,7 +28,7 @@ Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). Generic equivalen
 
 > **`--report`** prints original PII. Human interactive use only — never in CI or shared logs.
 
-Full flag descriptions and **What is replaced** table: [generic CLI reference](https://github.com/alkitect/pii-intake-pseudonymizer/blob/main/docs/cli-reference.md) (same engine; SN adds `--promote` and different defaults). Technical categories (`MACHINE_NNN`, `PATH_NNN`, `CMD_NNN`, `CERT_NNN`) require **`--also-technical`** or individual `--also-*` flags — default off.
+Shared mode and detection flags are summarized above; see [Getting started](getting-started.md) and [examples](examples/README.md) for replacement samples. Technical categories (`MACHINE_NNN`, `PATH_NNN`, `CMD_NNN`, `CERT_NNN`) require `--also-technical` or individual `--also-*` flags (default off).
 
 ## Gate vs intake
 

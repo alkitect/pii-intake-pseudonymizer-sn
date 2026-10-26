@@ -142,7 +142,7 @@ while IFS= read -r tracked; do
   esac
 done < <(git ls-files)
 
-python3 - <<'PY'
+python - <<'PY'
 from pathlib import Path
 import re
 import subprocess
@@ -159,8 +159,10 @@ for d in prefixes:
     for p in d.rglob("*"):
         if not p.is_file():
             continue
-        if p.name == ".gitkeep" and p.stat().st_size == 0:
-            continue
+        if p.name == ".gitkeep":
+            # Allow empty keepers (0 bytes) or whitespace-only leftovers
+            if p.stat().st_size == 0 or not p.read_bytes().strip():
+                continue
         print(f"payload: {p.as_posix()}", file=sys.stderr)
         sys.exit(1)
 

@@ -8,7 +8,10 @@ Defaults: read `inbox/raw/`, write `inbox/clean/`. See [Repo layout](repo-layout
 
 | Flag | Description |
 |------|-------------|
-| `--promote STORY-id` | On the **same write pass** as intake: copy remaining `inbox/clean/` → `src/stories/<STORY-id>/intake-clean/`, then clear staging and update manifest |
+| `--promote STORY-id` | On the **same write pass** as intake: **merge** checksum-verified `inbox/clean/` into `src/stories/<STORY-id>/intake-clean/` (siblings kept), then clear staging |
+| `--replace-target` | With promote: wipe target dir before copy (destructive opt-in) |
+| `--allow-skipped-binary` | Allow promote when Excel/PDF were skipped (default: refuse) |
+| `--promote-to PATH` | Merge verified staging into a repo-relative directory (refuses `inbox/` and `.local/`) |
 | _(default paths)_ | `inbox/raw` → `inbox/clean` when no paths given |
 
 Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). Generic equivalent: `--copy-to DEST` → `DEST/intake-clean/` — see [product comparison](product-comparison.md).

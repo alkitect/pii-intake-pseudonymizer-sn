@@ -22,7 +22,7 @@ def _load_mod():
         sys.path.insert(0, scripts)
     # Reload dependents if already imported
     for name in list(sys.modules):
-        if name in {"anonymize_intake", "pii_map_crypto", "pii_detectors", "pii_ner", "intake_manifest"}:
+        if name in {"anonymize_intake", "pii_map_crypto", "pii_detectors", "pii_ner"}:
             del sys.modules[name]
     spec = importlib.util.spec_from_file_location("anonymize_intake", SCRIPT)
     assert spec and spec.loader
@@ -44,14 +44,16 @@ def pii_map(tmp_path, mod):
 
 @pytest.fixture
 def allowlist(mod):
-    return {"noreply@example.invalid", "system", "guest"}
+    return {"noreply@hva.nl", "system", "guest"}
 
 
 def test_email_and_display_name(mod, pii_map, allowlist):
-    text = "From: Jane Doe <jane.doe@example.invalid>\nCc: noreply@example.invalid\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "jane.doe@example.invalid" not in result.text.lower()
-    assert "noreply@example.invalid" in result.text
+    text = "From: Jane Doe <jane.doe@uva.nl>\nCc: noreply@hva.nl\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
+    assert "jane.doe@uva.nl" not in result.text.lower()
+    assert "noreply@hva.nl" in result.text
     assert "PERSON_" in result.text
     assert "@example.test" in result.text
     assert not result.residual_emails
@@ -59,7 +61,9 @@ def test_email_and_display_name(mod, pii_map, allowlist):
 
 def test_sys_created_by_username(mod, pii_map, allowlist):
     text = "<sys_created_by>jbregma1</sys_created_by><sys_updated_by>system</sys_updated_by>"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "jbregma1" not in result.text
     assert "username_" in result.text
     assert "<sys_updated_by>system</sys_updated_by>" in result.text
@@ -68,13 +72,15 @@ def test_sys_created_by_username(mod, pii_map, allowlist):
 def test_markdown_jira_paste(mod, pii_map, allowlist):
     text = (
         "## Bug\n"
-        "- Sender test.user@example.invalid logged as Guest\n"
+        "- Sender test.user@uva.nl logged as Guest\n"
         "- Salutation used first name from Alex\n"
     )
     # Seed name so plain "Alex" is replaced
     pii_map.name_token("Alex")
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "test.user@example.invalid" not in result.text
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
+    assert "test.user@uva.nl" not in result.text
     assert "Alex" not in result.text
     assert "PERSON_" in result.text
 
@@ -82,7 +88,7 @@ def test_markdown_jira_paste(mod, pii_map, allowlist):
 def test_harvest_reporter_slash_and_test_with(mod, pii_map, allowlist):
     text = (
         "| **REPORTER(S):** | - Jane Doe/Alex van Berg |\n"
-        "| **DESCRIPTION** | - Import from ExampleOrgA and ExampleOrgB |\n"
+        "| **DESCRIPTION** | - Import from Dustin and Esprit |\n"
         "| **TEST INSTRUCTIONS** | - Test with Jane Doe:<br>  - Run the import |\n"
     )
     result = mod.anonymize_text(
@@ -91,8 +97,8 @@ def test_harvest_reporter_slash_and_test_with(mod, pii_map, allowlist):
     assert "Jane Doe" not in result.text
     assert "Alex van Berg" not in result.text
     assert "PERSON_" in result.text
-    assert "ExampleOrgA" in result.text
-    assert "ExampleOrgB" in result.text
+    assert "Dustin" in result.text
+    assert "Esprit" in result.text
     assert "Test with PERSON_" in result.text
 
 
@@ -104,7 +110,9 @@ def test_harvest_comma_and_bullet_lists(mod, pii_map, allowlist):
         "\n"
         "| **Reporter** | Jane Doe, John Smith |\n"
     )
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "Jane Doe" not in result.text
     assert "John Smith" not in result.text
     assert "Alex van Berg" not in result.text
@@ -116,7 +124,9 @@ def test_harvest_xml_display_value(mod, pii_map, allowlist):
         '<opened_by display_value="Jane Doe">abc</opened_by>\n'
         '<assignment_group display_value="WPO IT on Site Support">x</assignment_group>\n'
     )
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "Jane Doe" not in result.text
     assert "WPO IT on Site Support" in result.text
 
@@ -140,7 +150,7 @@ def test_looks_like_person_name_rejects_labels(mod):
     assert mod.looks_like_person_name("Jane Doe") is True
     assert mod.looks_like_person_name("Alex van Berg") is True
     assert mod.looks_like_person_name("Kostenplaats") is False
-    assert mod.looks_like_person_name("ExampleOrgA") is False
+    assert mod.looks_like_person_name("Dustin") is False
     assert mod.looks_like_person_name("WPO") is False
     assert mod.looks_like_person_name("4 people") is False
     assert mod.looks_like_person_name("INC0871657") is False
@@ -148,7 +158,9 @@ def test_looks_like_person_name_rejects_labels(mod):
 
 def test_also_ip(mod, pii_map, allowlist):
     text = "Client 10.20.30.40 and peer fd12:3456:789a:1::1\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=True)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=True
+    )
     assert "10.20.30.40" not in result.text
     assert "203.0.113." in result.text
     assert "fd12:3456:789a:1::1" not in result.text.lower()
@@ -156,25 +168,29 @@ def test_also_ip(mod, pii_map, allowlist):
 
 
 def test_also_machines_off_by_default(mod, pii_map, allowlist):
-    text = "hostname: host-a.example.invalid\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "host-a.example.invalid" in result.text
+    text = "hostname: sn-prod-01.example.local\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
+    assert "sn-prod-01.example.local" in result.text
     assert "MACHINE_" not in result.text
 
 
 def test_also_machines_scrubs_labeled_field(mod, pii_map, allowlist):
-    text = "host= host-a.example.invalid\n"
+    text = "host= sn-prod-01.example.local\n"
     result = mod.anonymize_text(
         text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_machines=True
     )
-    assert "host-a.example.invalid" not in result.text
+    assert "sn-prod-01.example.local" not in result.text
     assert "MACHINE_001" in result.text
     assert "host=" in result.text
 
 
 def test_also_paths_off_by_default(mod, pii_map, allowlist):
     text = r"Log at C:\Users\secret\export.xml\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert r"C:\Users\secret\export.xml" in result.text
 
 
@@ -193,7 +209,9 @@ def test_also_paths_scrubs_windows_and_unix(mod, pii_map, allowlist):
 
 def test_also_commands_off_by_default(mod, pii_map, allowlist):
     text = "py -3 scripts/anonymize_intake.py inbox/raw\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "anonymize_intake.py" in result.text
 
 
@@ -214,7 +232,11 @@ def test_also_certificates_whole_pem_block(mod, pii_map, allowlist):
     )
     text = f"cert:\n{pem}tail\n"
     result = mod.anonymize_text(
-        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=True
+        text,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        also_certificates=True,
     )
     assert "BEGIN CERTIFICATE" not in result.text
     assert "MIIBkTCB" not in result.text
@@ -223,19 +245,15 @@ def test_also_certificates_whole_pem_block(mod, pii_map, allowlist):
 
 
 def test_also_certificates_multiple_pem_blocks(mod, pii_map, allowlist):
-    pem1 = (
-        "-----BEGIN CERTIFICATE-----\n"
-        "AAAA\n"
-        "-----END CERTIFICATE-----\n"
-    )
-    pem2 = (
-        "-----BEGIN CERTIFICATE-----\n"
-        "BBBB\n"
-        "-----END CERTIFICATE-----\n"
-    )
+    pem1 = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
+    pem2 = "-----BEGIN CERTIFICATE-----\nBBBB\n-----END CERTIFICATE-----\n"
     text = pem1 + "between\n" + pem2
     result = mod.anonymize_text(
-        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=True
+        text,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        also_certificates=True,
     )
     assert "BEGIN CERTIFICATE" not in result.text
     assert "AAAA" not in result.text
@@ -251,7 +269,11 @@ def test_also_certificates_off_by_default(mod, pii_map, allowlist):
         "-----END CERTIFICATE-----\n"
     )
     result = mod.anonymize_text(
-        pem, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_certificates=False
+        pem,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        also_certificates=False,
     )
     assert "BEGIN CERTIFICATE" in result.text
 
@@ -316,6 +338,7 @@ def test_technical_token_map_stable_per_kind(
 
 
 def test_technical_scrub_adversarial_long_string_bounded(mod, pii_map, allowlist):
+    # Also guards EMAIL_SIMPLE_RE: unbounded local-part "+" is quadratic on alnum noise.
     long_noise = "x" * 50000
     text = f"hostname: short-host\n{long_noise}\n"
     result = mod.anonymize_text(
@@ -329,28 +352,24 @@ def test_technical_scrub_adversarial_long_string_bounded(mod, pii_map, allowlist
 def test_map_stable_across_runs(mod, tmp_path, allowlist):
     map_path = tmp_path / "pii-map.json"
     m1 = mod.PiiMap.load(map_path)
-    r1 = mod.anonymize_text(
-        "a@example.invalid", pii_map=m1, allowlist=allowlist, also_ip=False
-    )
+    r1 = mod.anonymize_text("a@uva.nl", pii_map=m1, allowlist=allowlist, also_ip=False)
     m1.save()
     m2 = mod.PiiMap.load(map_path)
-    r2 = mod.anonymize_text(
-        "a@example.invalid", pii_map=m2, allowlist=allowlist, also_ip=False
-    )
+    r2 = mod.anonymize_text("a@uva.nl", pii_map=m2, allowlist=allowlist, also_ip=False)
     assert r1.text == r2.text
     data = json.loads(map_path.read_text(encoding="utf-8"))
-    assert "a@example.invalid" in data["emails"]
+    assert "a@uva.nl" in data["emails"]
 
 
 def test_short_name_does_not_corrupt_serviceportal(mod, pii_map, allowlist):
     # Regression: short display fragments must not substring-replace inside emails/keys
     pii_map.names["or"] = "PERSON_999"
-    text = (
-        'sys_name": "serviceportal@example.invalid" order original core import\n'
+    text = 'sys_name": "serviceportal@hva.nl" order original core import\n'
+    allowlist = set(allowlist) | {"serviceportal@hva.nl"}
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
     )
-    allowlist = set(allowlist) | {"serviceportal@example.invalid"}
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "serviceportal@example.invalid" in result.text
+    assert "serviceportal@hva.nl" in result.text
     assert "PERSON_999" not in result.text
     assert "order" in result.text
 
@@ -363,7 +382,9 @@ def test_name_test_does_not_corrupt_example_test_emails(mod, pii_map, allowlist)
         "Contact UHMASKEDADDR_user_001@example.test and user_002@example.test.\n"
         "Also keep standalone Test in prose.\n"
     )
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "UHMASKEDADDR_user_001@example.test" in result.text
     assert "user_002@example.test" in result.text
     assert "@example.PERSON" not in result.text
@@ -375,7 +396,9 @@ def test_deny_listed_name_parts_not_plain_replaced(mod, pii_map, allowlist):
     pii_map.names["user"] = "PERSON_099"
     text = "The user opened a case for Sam Jansen.\n"
     pii_map.name_token("Sam Jansen")
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "user" in result.text.lower()
     assert "PERSON_099" not in result.text
     assert "Sam Jansen" not in result.text
@@ -385,7 +408,9 @@ def test_deny_listed_name_parts_not_plain_replaced(mod, pii_map, allowlist):
 def test_already_scrubbed_person_tokens_not_retokenized(mod, pii_map, allowlist):
     # Re-scrub must not map PERSON_001 → PERSON_00N (cascade / hit inflation).
     text = "Caller PERSON_001 <user_001@example.test> and PERSON_002 in prose.\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "PERSON_001" in result.text
     assert "PERSON_002" in result.text
     assert "user_001@example.test" in result.text
@@ -400,7 +425,9 @@ def test_already_scrubbed_person_tokens_not_retokenized(mod, pii_map, allowlist)
 
 def test_json_sys_created_by(mod, pii_map, allowlist):
     text = '{"sys_created_by": "jbregma1", "sys_updated_by": "system"}'
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "jbregma1" not in result.text
     assert '"sys_created_by": "username_' in result.text
     assert '"sys_updated_by": "system"' in result.text
@@ -410,7 +437,7 @@ def test_cli_dry_run_inbox(mod, tmp_path, monkeypatch):
     raw = mod.DEFAULT_RAW
     raw.mkdir(parents=True, exist_ok=True)
     sample = raw / "_pytest_sample.md"
-    sample.write_text("Contact alice@example.invalid please\n", encoding="utf-8")
+    sample.write_text("Contact alice@uva.nl please\n", encoding="utf-8")
     map_path = tmp_path / "map.json"
     try:
         code = mod.main(
@@ -433,18 +460,22 @@ def test_cli_dry_run_inbox(mod, tmp_path, monkeypatch):
 
 
 def test_uhmaskedaddr_prefix_preserved(mod, pii_map, allowlist):
-    text = "Masked `UHMASKEDADDR_masked.user@example.invalid` and bare icto-feb@example.invalid\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "masked.user" not in result.text.lower()
-    assert "icto-feb@example.invalid" not in result.text.lower()
+    text = "Masked `UHMASKEDADDR_hanskeesom@gmail.com` and bare icto-feb@uva.nl\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
+    assert "hanskeesom" not in result.text.lower()
+    assert "icto-feb@uva.nl" not in result.text.lower()
     assert "UHMASKEDADDR_user_" in result.text
     assert "@example.test" in result.text
     assert not result.residual_emails
 
 
 def test_allowlisted_noreply_unchanged(mod, pii_map, allowlist):
-    text = "From noreply@example.invalid only\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    text = "From noreply@hva.nl only\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert result.text == text
     assert not result.hits
 
@@ -453,13 +484,10 @@ def test_cli_in_place_round_trip(mod, tmp_path):
     tree = tmp_path / "story" / "docs"
     tree.mkdir(parents=True)
     target = tree / "JIRA.md"
-    target.write_text(
-        "Sender bad.actor@example.invalid\nCc: noreply@example.invalid\n",
-        encoding="utf-8",
-    )
+    target.write_text("Sender bad.actor@uva.nl\nCc: noreply@hva.nl\n", encoding="utf-8")
     map_path = tmp_path / "map.json"
     allow = tmp_path / "allow.txt"
-    allow.write_text("noreply@example.invalid\n", encoding="utf-8")
+    allow.write_text("noreply@hva.nl\n", encoding="utf-8")
     code = mod.main(
         [
             str(tree),
@@ -473,8 +501,8 @@ def test_cli_in_place_round_trip(mod, tmp_path):
     )
     assert code == 0
     written = target.read_text(encoding="utf-8")
-    assert "bad.actor@example.invalid" not in written
-    assert "noreply@example.invalid" in written
+    assert "bad.actor@uva.nl" not in written
+    assert "noreply@hva.nl" in written
     assert "@example.test" in written
     assert map_path.is_file()
 
@@ -486,7 +514,7 @@ def test_cli_in_place_refuses_out(mod, tmp_path):
     assert code == 2
 
 
-def _stories_fixture(tmp_path, monkeypatch, mod, rel: str = "STORY-1000/docs/JIRA.md"):
+def _stories_fixture(tmp_path, monkeypatch, mod, rel: str = "STORY-1/docs/JIRA.md"):
     stories_root = tmp_path / "src" / "stories"
     target = stories_root / rel
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -498,13 +526,13 @@ def _stories_fixture(tmp_path, monkeypatch, mod, rel: str = "STORY-1000/docs/JIR
 
 
 def test_gate_multipath_personal_email_fails(mod, tmp_path, monkeypatch, capsys):
-    f1 = _stories_fixture(tmp_path, monkeypatch, mod, "STORY-1000/docs/a.md")
-    f2 = _stories_fixture(tmp_path, monkeypatch, mod, "STORY-2000/docs/b.md")
-    f1.write_text("Contact bad.actor@example.invalid\n", encoding="utf-8")
+    f1 = _stories_fixture(tmp_path, monkeypatch, mod, "STORY-1/docs/a.md")
+    f2 = _stories_fixture(tmp_path, monkeypatch, mod, "STORY-2/docs/b.md")
+    f1.write_text("Contact bad.actor@uva.nl\n", encoding="utf-8")
     f2.write_text("ok text only\n", encoding="utf-8")
     map_path = tmp_path / "map.json"
     allow = tmp_path / "allow.txt"
-    allow.write_text("noreply@example.invalid\n", encoding="utf-8")
+    allow.write_text("noreply@hva.nl\n", encoding="utf-8")
     code = mod.main(
         [
             str(f1),
@@ -521,16 +549,16 @@ def test_gate_multipath_personal_email_fails(mod, tmp_path, monkeypatch, capsys)
     )
     out = capsys.readouterr().out
     assert code == 1
-    assert "bad.actor@example.invalid" not in out
+    assert "bad.actor@uva.nl" not in out
     assert '"mode": "gate"' in out or '"mode":"gate"' in out.replace(" ", "")
     assert not map_path.is_file()
 
 
 def test_gate_allowlisted_only_ok(mod, tmp_path, monkeypatch, capsys):
     f = _stories_fixture(tmp_path, monkeypatch, mod)
-    f.write_text("From noreply@example.invalid only\n", encoding="utf-8")
+    f.write_text("From noreply@hva.nl only\n", encoding="utf-8")
     allow = tmp_path / "allow.txt"
-    allow.write_text("noreply@example.invalid\n", encoding="utf-8")
+    allow.write_text("noreply@hva.nl\n", encoding="utf-8")
     code = mod.main(
         [
             str(f),
@@ -544,12 +572,12 @@ def test_gate_allowlisted_only_ok(mod, tmp_path, monkeypatch, capsys):
     )
     out = capsys.readouterr().out
     assert code == 0
-    assert "noreply@example.invalid" not in out
+    assert "noreply@hva.nl" not in out
 
 
 def test_gate_summary_implies_fail_on_hits(mod, tmp_path, monkeypatch):
     f = _stories_fixture(tmp_path, monkeypatch, mod)
-    f.write_text("leak person@example.invalid\n", encoding="utf-8")
+    f.write_text("leak person@uva.nl\n", encoding="utf-8")
     allow = tmp_path / "allow.txt"
     allow.write_text("", encoding="utf-8")
     code = mod.main(
@@ -577,7 +605,7 @@ def test_agent_safe_rejects_explicit_report(mod, tmp_path, monkeypatch, capsys):
     raw = tmp_path / "inbox" / "raw"
     raw.mkdir(parents=True)
     sample = raw / "drop.md"
-    sample.write_text("From: a@example.invalid\n", encoding="utf-8")
+    sample.write_text("From: a@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", tmp_path / "inbox" / "clean")
@@ -601,12 +629,14 @@ def test_agent_safe_rejects_explicit_report(mod, tmp_path, monkeypatch, capsys):
     assert "report" in err.lower()
 
 
-def test_report_alone_opts_out_of_default_agent_safe(mod, tmp_path, monkeypatch, capsys):
+def test_report_alone_opts_out_of_default_agent_safe(
+    mod, tmp_path, monkeypatch, capsys
+):
     raw = tmp_path / "inbox" / "raw"
     clean = tmp_path / "inbox" / "clean"
     raw.mkdir(parents=True)
     sample = raw / "drop.md"
-    sample.write_text("From: person@example.invalid\n", encoding="utf-8")
+    sample.write_text("From: person@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", clean)
@@ -626,7 +656,7 @@ def test_report_alone_opts_out_of_default_agent_safe(mod, tmp_path, monkeypatch,
     assert code in (0, 1)
     out = capsys.readouterr().out
     assert "hits" in out
-    assert "person@example.invalid" in out or "original" in out
+    assert "person@uva.nl" in out or "original" in out
 
 
 def test_default_write_is_agent_safe_counts_only(mod, tmp_path, monkeypatch, capsys):
@@ -634,7 +664,7 @@ def test_default_write_is_agent_safe_counts_only(mod, tmp_path, monkeypatch, cap
     clean = tmp_path / "inbox" / "clean"
     raw.mkdir(parents=True)
     sample = raw / "drop.md"
-    sample.write_text("From: person@example.invalid\n", encoding="utf-8")
+    sample.write_text("From: person@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", clean)
@@ -652,7 +682,7 @@ def test_default_write_is_agent_safe_counts_only(mod, tmp_path, monkeypatch, cap
     )
     assert code in (0, 1)
     out = capsys.readouterr().out
-    assert "person@example.invalid" not in out
+    assert "person@uva.nl" not in out
     assert "original" not in out
     assert "processed=" in out
     assert "deleted_raw=1" in out
@@ -660,8 +690,7 @@ def test_default_write_is_agent_safe_counts_only(mod, tmp_path, monkeypatch, cap
     assert (clean / "drop.md").is_file()
     assert not sample.exists()
     assert (
-        "person@example.invalid"
-        not in (clean / "drop.md").read_text(encoding="utf-8").lower()
+        "person@uva.nl" not in (clean / "drop.md").read_text(encoding="utf-8").lower()
     )
     manifest = tmp_path / ".local" / "intake-manifest.json"
     assert manifest.is_file()
@@ -675,7 +704,7 @@ def test_write_keep_raw_retains_source(mod, tmp_path, monkeypatch, capsys):
     clean = tmp_path / "inbox" / "clean"
     raw.mkdir(parents=True)
     sample = raw / "drop.md"
-    sample.write_text("From: person@example.invalid\n", encoding="utf-8")
+    sample.write_text("From: person@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", clean)
@@ -730,7 +759,7 @@ def _write_argv(raw, tmp_path, allow, extra=None):
 
 def test_next_write_prunes_leftover_clean(mod, tmp_path, monkeypatch, capsys):
     raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
-    (raw / "old.md").write_text("From: person@example.invalid\n", encoding="utf-8")
+    (raw / "old.md").write_text("From: person@uva.nl\n", encoding="utf-8")
     code = mod.main(_write_argv(raw, tmp_path, allow))
     assert code in (0, 1)
     capsys.readouterr()
@@ -738,7 +767,7 @@ def test_next_write_prunes_leftover_clean(mod, tmp_path, monkeypatch, capsys):
     nested = clean / "nested" / "stale.md"
     nested.parent.mkdir()
     nested.write_text("stale\n", encoding="utf-8")
-    (raw / "drop.md").write_text("From: person@example.invalid\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
     code = mod.main(_write_argv(raw, tmp_path, allow))
     assert code in (0, 1)
     out = capsys.readouterr().out
@@ -747,7 +776,9 @@ def test_next_write_prunes_leftover_clean(mod, tmp_path, monkeypatch, capsys):
     assert (clean / ".gitkeep").is_file()
     assert not (clean / "old.md").exists()
     assert not nested.exists()
-    data = json.loads((tmp_path / ".local" / "intake-manifest.json").read_text(encoding="utf-8"))
+    data = json.loads(
+        (tmp_path / ".local" / "intake-manifest.json").read_text(encoding="utf-8")
+    )
     files = data.get("files", {})
     assert "inbox/clean/drop.md" in files
     assert "inbox/clean/old.md" not in files
@@ -758,7 +789,7 @@ def test_keep_clean_retains_leftover_staging(mod, tmp_path, monkeypatch, capsys)
     raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
     leftover = clean / "old.md"
     leftover.write_text("previous run\n", encoding="utf-8")
-    (raw / "drop.md").write_text("From: person@example.invalid\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
     code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--keep-clean"]))
     assert code in (0, 1)
     out = capsys.readouterr().out
@@ -772,33 +803,30 @@ def test_promote_clears_staging_keeps_story(mod, tmp_path, monkeypatch, capsys):
     raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
     leftover = clean / "old.md"
     leftover.write_text("previous run\n", encoding="utf-8")
-    (raw / "drop.md").write_text("From: person@example.invalid\n", encoding="utf-8")
-    story_doc = tmp_path / "src" / "stories" / "STORY-9900" / "docs" / "note.md"
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
+    story_doc = tmp_path / "src" / "stories" / "STORY-99" / "docs" / "note.md"
     story_doc.parent.mkdir(parents=True)
     story_doc.write_text("keep me\n", encoding="utf-8")
-    code = mod.main(
-        _write_argv(raw, tmp_path, allow, extra=["--promote", "STORY-9900"])
-    )
+    code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--promote", "STORY-99"]))
     assert code in (0, 1)
     out = capsys.readouterr().out
     assert "deleted_clean=2" in out
-    promoted = tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "drop.md"
+    promoted = tmp_path / "src" / "stories" / "STORY-99" / "intake-clean" / "drop.md"
     assert promoted.is_file()
-    assert (
-        "person@example.invalid"
-        not in promoted.read_text(encoding="utf-8").lower()
-    )
+    assert "person@uva.nl" not in promoted.read_text(encoding="utf-8").lower()
     assert not (
-        tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "old.md"
+        tmp_path / "src" / "stories" / "STORY-99" / "intake-clean" / "old.md"
     ).exists()
     assert not leftover.exists()
     assert not (clean / "drop.md").exists()
     assert (clean / ".gitkeep").is_file()
     assert story_doc.is_file()
     assert story_doc.read_text(encoding="utf-8") == "keep me\n"
-    data = json.loads((tmp_path / ".local" / "intake-manifest.json").read_text(encoding="utf-8"))
+    data = json.loads(
+        (tmp_path / ".local" / "intake-manifest.json").read_text(encoding="utf-8")
+    )
     files = data.get("files", {})
-    assert "src/stories/STORY-9900/intake-clean/drop.md" in files
+    assert "src/stories/STORY-99/intake-clean/drop.md" in files
     assert not any(k.replace("\\", "/").startswith("inbox/clean/") for k in files)
 
 
@@ -807,9 +835,7 @@ def test_cli_also_technical_scrubs_and_writes(mod, tmp_path, monkeypatch, capsys
     pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
     content = (
         "host= secret-box\n"
-        r"log C:\Users\secret\export.xml" + "\n\n"
-        + pem
-        + "\npy -3 scripts/foo.py\n"
+        r"log C:\Users\secret\export.xml" + "\n\n" + pem + "\npy -3 scripts/foo.py\n"
     )
     (raw / "tech.log").write_text(content, encoding="utf-8")
     code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--also-technical"]))
@@ -838,58 +864,95 @@ def test_cli_also_technical_bundle_sets_flags(mod, tmp_path, monkeypatch):
     assert args.also_certificates is True
 
 
-def test_cli_also_technical_with_promote(mod, tmp_path, monkeypatch, capsys):
-    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
-    pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
-    (raw / "tech.log").write_text(
-        "host= secret-box\n" + pem,
-        encoding="utf-8",
-    )
-    code = mod.main(
-        _write_argv(
-            raw,
-            tmp_path,
-            allow,
-            extra=["--also-technical", "--promote", "STORY-9900"],
-        )
-    )
-    assert code == 0
-    capsys.readouterr()
-    promoted = tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "tech.log"
-    assert promoted.is_file()
-    out_text = promoted.read_text(encoding="utf-8")
-    assert "secret" not in out_text.lower()
-    assert "CERT_" in out_text
-
-
 def test_keep_clean_promote_leaves_staging(mod, tmp_path, monkeypatch, capsys):
     raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
     leftover = clean / "old.md"
     leftover.write_text("previous run\n", encoding="utf-8")
-    (raw / "drop.md").write_text("From: person@example.invalid\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
     code = mod.main(
-        _write_argv(
-            raw,
-            tmp_path,
-            allow,
-            extra=["--keep-clean", "--promote", "STORY-9900"],
-        )
+        _write_argv(raw, tmp_path, allow, extra=["--keep-clean", "--promote", "STORY-99"])
     )
     assert code in (0, 1)
     out = capsys.readouterr().out
     assert "deleted_clean=0" in out
     assert leftover.is_file()
     assert (clean / "drop.md").is_file()
-    assert (tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "drop.md").is_file()
-    # keep-clean skips prune, so leftover is copied into the story as well
-    assert (tmp_path / "src" / "stories" / "STORY-9900" / "intake-clean" / "old.md").is_file()
+    assert (
+        tmp_path / "src" / "stories" / "STORY-99" / "intake-clean" / "drop.md"
+    ).is_file()
+    # keep-clean leaves unverified leftover in staging; merge promotes verified only
+    assert not (
+        tmp_path / "src" / "stories" / "STORY-99" / "intake-clean" / "old.md"
+    ).exists()
+
+
+def test_promote_merge_preserves_sibling(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    intake = tmp_path / "src" / "stories" / "STORY-99" / "intake-clean"
+    intake.mkdir(parents=True)
+    sibling = intake / "keep-sibling.xml"
+    sibling.write_text("<unload/>\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
+    code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--promote", "STORY-99"]))
+    assert code in (0, 1)
+    capsys.readouterr()
+    assert (intake / "drop.md").is_file()
+    assert sibling.is_file()
+    assert sibling.read_text(encoding="utf-8") == "<unload/>\n"
+
+
+def test_promote_replace_target_wipes_siblings(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    intake = tmp_path / "src" / "stories" / "STORY-99" / "intake-clean"
+    intake.mkdir(parents=True)
+    sibling = intake / "old-sibling.xml"
+    sibling.write_text("<unload/>\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
+    code = mod.main(
+        _write_argv(
+            raw, tmp_path, allow, extra=["--promote", "STORY-99", "--replace-target"]
+        )
+    )
+    assert code in (0, 1)
+    capsys.readouterr()
+    assert (intake / "drop.md").is_file()
+    assert not sibling.exists()
+
+
+def test_promote_refuses_skipped_binary(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
+    (raw / "sheet.xlsx").write_bytes(b"PK\x03\x04fake-xlsx")
+    code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--promote", "STORY-99"]))
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "skipped_binary" in err.lower()
+
+
+def test_promote_allow_skipped_binary(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
+    (raw / "sheet.xlsx").write_bytes(b"PK\x03\x04fake-xlsx")
+    code = mod.main(
+        _write_argv(
+            raw,
+            tmp_path,
+            allow,
+            extra=["--promote", "STORY-99", "--allow-skipped-binary"],
+        )
+    )
+    assert code in (0, 1)
+    capsys.readouterr()
+    assert (
+        tmp_path / "src" / "stories" / "STORY-99" / "intake-clean" / "drop.md"
+    ).is_file()
 
 
 def test_dry_run_does_not_prune_clean(mod, tmp_path, monkeypatch, capsys):
     raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
     leftover = clean / "old.md"
     leftover.write_text("previous run\n", encoding="utf-8")
-    (raw / "drop.md").write_text("From: person@example.invalid\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: person@uva.nl\n", encoding="utf-8")
     code = mod.main(_write_argv(raw, tmp_path, allow, extra=["--dry-run"]))
     assert code in (0, 1)
     out = capsys.readouterr().out
@@ -928,12 +991,108 @@ def test_clear_clean_staging_keeps_gitkeep(mod, tmp_path):
     assert not nested.exists()
 
 
+def test_promote_to_copies_to_repo_dir_and_clears(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    leftover = clean / "old.md"
+    leftover.write_text("previous run\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: [EMAIL]\n", encoding="utf-8")
+    code = mod.main(
+        _write_argv(raw, tmp_path, allow, extra=["--promote-to", "docs/intake"])
+    )
+    assert code in (0, 1)
+    out = capsys.readouterr().out
+    promoted = tmp_path / "docs" / "intake" / "drop.md"
+    assert promoted.is_file()
+    assert "[EMAIL]" not in promoted.read_text(encoding="utf-8").lower()
+    assert not (tmp_path / "docs" / "intake" / "old.md").exists()
+    assert not (clean / "drop.md").exists()
+    assert (clean / ".gitkeep").is_file()
+    assert "deleted_clean=" in out
+
+
+def test_resolve_promote_to_rejects_outside_local_and_absolute(
+    mod, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(mod, "STORIES_ROOT", tmp_path / "src" / "stories")
+    for bad in ("inbox/raw", ".local/x", "../outside", str(tmp_path / "abs")):
+        with pytest.raises(ValueError, match="in-repo dir outside"):
+            mod.resolve_promote_to_target(bad)
+    assert (
+        mod.resolve_promote_to_target("STORY-42")
+        == tmp_path / "src" / "stories" / "STORY-42" / "intake-clean"
+    )
+    assert mod.resolve_promote_to_target("docs/x") == tmp_path / "docs" / "x"
+
+
+def test_standalone_adopt_from_verified_staging(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (raw / "drop.md").write_text("From: [EMAIL]\n", encoding="utf-8")
+    assert mod.main(_write_argv(raw, tmp_path, allow)) in (0, 1)
+    capsys.readouterr()
+    assert not (raw / "drop.md").exists()
+    assert (clean / "drop.md").is_file()
+    code = mod.main(
+        _write_argv(raw, tmp_path, allow, extra=["--promote-to", "docs/intake"])
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert (tmp_path / "docs" / "intake" / "drop.md").is_file()
+    assert not (clean / "drop.md").exists()
+    assert "promoted=1" in out
+
+
+def test_standalone_adopt_rejects_unverified_staging(
+    mod, tmp_path, monkeypatch, capsys
+):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (clean / "hand.md").write_text("hand copied\n", encoding="utf-8")
+    code = mod.main(
+        _write_argv(raw, tmp_path, allow, extra=["--promote-to", "docs/intake"])
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "unverified" in err
+    assert (clean / "hand.md").is_file()
+    assert not (tmp_path / "docs" / "intake" / "hand.md").exists()
+
+
+def test_clear_clean_flag_clears_and_keeps_gitkeep(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (clean / "a.md").write_text("x\n", encoding="utf-8")
+    code = mod.main(["--clear-clean"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "deleted_clean=1" in out
+    assert (clean / ".gitkeep").is_file()
+    assert not (clean / "a.md").exists()
+
+
+def test_fail_on_leftover_clean_exits_nonzero(mod, tmp_path, monkeypatch, capsys):
+    raw, clean, allow = _patch_inbox(mod, tmp_path, monkeypatch)
+    (clean / "stale.md").write_text("old run\n", encoding="utf-8")
+    (raw / "drop.md").write_text("From: [EMAIL]\n", encoding="utf-8")
+    out_dir = tmp_path / "out"
+    code = mod.main(
+        _write_argv(
+            raw,
+            tmp_path,
+            allow,
+            extra=["--out", str(out_dir), "--fail-on-leftover-clean"],
+        )
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "leftover" in err.lower()
+    assert (clean / "stale.md").is_file()
+
+
 def test_dry_run_does_not_delete_raw(mod, tmp_path, monkeypatch, capsys):
     raw = tmp_path / "inbox" / "raw"
     clean = tmp_path / "inbox" / "clean"
     raw.mkdir(parents=True)
     sample = raw / "drop.md"
-    sample.write_text("From: person@example.invalid\n", encoding="utf-8")
+    sample.write_text("From: person@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", clean)
@@ -965,7 +1124,7 @@ def test_binary_skip_not_deleted_on_mixed_write(mod, tmp_path, monkeypatch, caps
     xlsx = raw / "sheet.xlsx"
     xlsx.write_bytes(b"PK\x03\x04fake")
     note = raw / "note.csv"
-    note.write_text("email,val\nperson@example.invalid,1\n", encoding="utf-8")
+    note.write_text("email,val\nperson@uva.nl,1\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "DEFAULT_RAW", raw)
     monkeypatch.setattr(mod, "DEFAULT_CLEAN", clean)
@@ -991,10 +1150,10 @@ def test_binary_skip_not_deleted_on_mixed_write(mod, tmp_path, monkeypatch, caps
 
 
 def test_in_place_does_not_delete_source(mod, tmp_path, monkeypatch):
-    stories = tmp_path / "src" / "stories" / "STORY-1000" / "docs"
+    stories = tmp_path / "src" / "stories" / "STORY-1" / "docs"
     stories.mkdir(parents=True)
     doc = stories / "note.md"
-    doc.write_text("Contact person@example.invalid\n", encoding="utf-8")
+    doc.write_text("Contact person@uva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "STORIES_ROOT", tmp_path / "src" / "stories")
     monkeypatch.setattr(mod, "DEFAULT_RAW", tmp_path / "inbox" / "raw")
@@ -1015,10 +1174,7 @@ def test_in_place_does_not_delete_source(mod, tmp_path, monkeypatch):
     )
     assert code in (0, 1)
     assert doc.is_file()
-    assert (
-        "person@example.invalid"
-        not in doc.read_text(encoding="utf-8").lower()
-    )
+    assert "person@uva.nl" not in doc.read_text(encoding="utf-8").lower()
 
 
 def test_gate_rejects_in_place(mod, tmp_path, monkeypatch):
@@ -1056,14 +1212,16 @@ def test_gate_rejects_inbox_raw(mod, tmp_path, monkeypatch, capsys):
 
 def test_export_skip_directory_walk(mod, tmp_path, monkeypatch):
     root = _stories_fixture(
-        tmp_path, monkeypatch, mod, "STORY-1000/docs/ok.md"
+        tmp_path, monkeypatch, mod, "STORY-1/docs/ok.md"
     ).parent.parent
     docs = root / "docs"
     docs.mkdir(parents=True, exist_ok=True)
     (docs / "ok.md").write_text("clean\n", encoding="utf-8")
     export = root / "source-export"
     export.mkdir()
-    (export / "secret.xml").write_text("<sys_created_by>leakuser1</sys_created_by>\n", encoding="utf-8")
+    (export / "secret.xml").write_text(
+        "<sys_created_by>leakuser1</sys_created_by>\n", encoding="utf-8"
+    )
     files, skipped_binary = mod.collect_files(root)
     assert skipped_binary == 0
     assert any(p.name == "ok.md" for p in files)
@@ -1101,7 +1259,7 @@ def test_binary_only_agent_safe_message(mod, tmp_path, monkeypatch, capsys):
 
 
 def test_gate_all_export_paths_fail(mod, tmp_path, monkeypatch):
-    stories = tmp_path / "src" / "stories" / "STORY-1000"
+    stories = tmp_path / "src" / "stories" / "STORY-1"
     export = stories / "source-export"
     export.mkdir(parents=True)
     xml = export / "rec.xml"
@@ -1109,21 +1267,21 @@ def test_gate_all_export_paths_fail(mod, tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "STORIES_ROOT", tmp_path / "src" / "stories")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "LOCAL_DIR", tmp_path / ".local")
-    code = mod.main([str(xml), "--dry-run", "--summary", "--map", str(tmp_path / "m.json")])
+    code = mod.main(
+        [str(xml), "--dry-run", "--summary", "--map", str(tmp_path / "m.json")]
+    )
     assert code == 2
 
 
 def test_gate_explicit_export_filtered_with_sibling(mod, tmp_path, monkeypatch, capsys):
-    docs = _stories_fixture(
-        tmp_path, monkeypatch, mod, "STORY-1000/docs/ok.md"
-    )
-    docs.write_text("From noreply@example.invalid\n", encoding="utf-8")
+    docs = _stories_fixture(tmp_path, monkeypatch, mod, "STORY-1/docs/ok.md")
+    docs.write_text("From noreply@hva.nl\n", encoding="utf-8")
     export = docs.parent.parent / "source-export"
     export.mkdir(parents=True, exist_ok=True)
     xml = export / "rec.xml"
     xml.write_text("<sys_created_by>leakuser1</sys_created_by>\n", encoding="utf-8")
     allow = tmp_path / "allow.txt"
-    allow.write_text("noreply@example.invalid\n", encoding="utf-8")
+    allow.write_text("noreply@hva.nl\n", encoding="utf-8")
     code = mod.main(
         [
             str(docs),
@@ -1146,12 +1304,13 @@ def test_gate_explicit_export_filtered_with_sibling(mod, tmp_path, monkeypatch, 
 def test_phone_and_iban_scrub(mod, pii_map, allowlist):
     # Valid IBAN (mod-97): NL91ABNA0417164300
     text = "Bel +31 6 12345678 of NL91 ABNA 0417 1643 00\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "+31 6 12345678" not in result.text
     assert "NL91ABNA0417164300".lower() not in result.text.replace(" ", "").lower()
     assert "IBAN_" in result.text
     assert "PHONE_" in result.text
-
 
 
 def test_residual_abort_before_write(mod, tmp_path, monkeypatch):
@@ -1171,8 +1330,8 @@ def test_residual_abort_before_write(mod, tmp_path, monkeypatch):
 
     def fake_anon(text, **kwargs):
         r = real_anon(text, **kwargs)
-        r.residual_emails = ["leak@example.invalid"]
-        r.residual = mod._det.ResidualReport(emails=["leak@example.invalid"])
+        r.residual_emails = ["leak@uva.nl"]
+        r.residual = mod._det.ResidualReport(emails=["leak@uva.nl"])
         return r
 
     monkeypatch.setattr(mod, "anonymize_text", fake_anon)
@@ -1188,17 +1347,19 @@ def test_residual_abort_before_write(mod, tmp_path, monkeypatch):
 
 
 def test_csv_person_header_harvest(mod, pii_map, allowlist):
-    text = "naam,email\nJane Doe,jane@example.invalid\n"
-    result = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
+    text = "naam,email\nJane Doe,jane@uva.nl\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False
+    )
     assert "Jane Doe" not in result.text
-    assert "jane@example.invalid" not in result.text.lower()
+    assert "jane@uva.nl" not in result.text.lower()
     assert "PERSON_" in result.text
 
 
 def test_harvest_single_token_flag(mod, pii_map, allowlist):
-    text = "| **Reporter** | ExampleOrgA |\n"
+    text = "| **Reporter** | Dustin |\n"
     off = mod.anonymize_text(text, pii_map=pii_map, allowlist=allowlist, also_ip=False)
-    assert "ExampleOrgA" in off.text
+    assert "Dustin" in off.text
     pii_map2 = mod.PiiMap.load(pii_map.path)
     on = mod.anonymize_text(
         text,
@@ -1208,7 +1369,7 @@ def test_harvest_single_token_flag(mod, pii_map, allowlist):
         harvest_single_token=True,
         scrub_orgs=False,
     )
-    assert "ExampleOrgA" not in on.text
+    assert "Dustin" not in on.text
     assert "PERSON_" in on.text
 
 
@@ -1229,8 +1390,8 @@ def test_expand_name_parts_scrubs_residual_firstname(mod, pii_map, allowlist):
 
 def test_org_scrub_default_list(mod, pii_map, allowlist):
     text = (
-        "| **DESCRIPTION** | Imports (ExampleOrgA and ExampleOrgB) fail |\n"
-        "| **TEST** | Select the ExampleOrgA import sheet |\n"
+        "| **DESCRIPTION** | Imports (Dustin and Esprit) fail |\n"
+        "| **TEST** | Select the Dustin import sheet |\n"
     )
     result = mod.anonymize_text(
         text,
@@ -1238,20 +1399,20 @@ def test_org_scrub_default_list(mod, pii_map, allowlist):
         allowlist=allowlist,
         also_ip=False,
         scrub_orgs=True,
-        org_scrublist=["ExampleOrgA", "ExampleOrgB"],
+        org_scrublist=["Dustin", "Esprit"],
     )
-    assert "ExampleOrgA" not in result.text
-    assert "ExampleOrgB" not in result.text
+    assert "Dustin" not in result.text
+    assert "Esprit" not in result.text
     assert "ORG_" in result.text
 
 
 def test_no_scrub_orgs_leaves_import_names(mod, pii_map, allowlist):
-    text = "| **DESCRIPTION** | ExampleOrgA and ExampleOrgB imports |\n"
+    text = "| **DESCRIPTION** | Dustin and Esprit imports |\n"
     result = mod.anonymize_text(
         text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
     )
-    assert "ExampleOrgA" in result.text
-    assert "ExampleOrgB" in result.text
+    assert "Dustin" in result.text
+    assert "Esprit" in result.text
 
 
 def test_irreversible_does_not_save_map(mod, tmp_path):
@@ -1260,7 +1421,7 @@ def test_irreversible_does_not_save_map(mod, tmp_path):
     raw.mkdir(parents=True)
     clean.mkdir(parents=True)
     src = raw / "a.md"
-    src.write_text("Mail a@example.invalid\n", encoding="utf-8")
+    src.write_text("Mail a@uva.nl\n", encoding="utf-8")
     map_path = tmp_path / "pii-map.json"
     # Point defaults via argv paths only
     code = mod.main(
@@ -1278,10 +1439,7 @@ def test_irreversible_does_not_save_map(mod, tmp_path):
     )
     assert code == 0
     assert (clean / "a.md").is_file()
-    assert (
-        "a@example.invalid"
-        not in (clean / "a.md").read_text(encoding="utf-8").lower()
-    )
+    assert "a@uva.nl" not in (clean / "a.md").read_text(encoding="utf-8").lower()
     assert not map_path.is_file()
 
 
@@ -1317,15 +1475,15 @@ def test_detect_only_map_unavailable(mod, tmp_path, monkeypatch, capsys):
     )
     monkeypatch.delenv("PII_MAP_KEY", raising=False)
 
-    stories = tmp_path / "src" / "stories" / "STORY-1000"
+    stories = tmp_path / "src" / "stories" / "STORY-1"
     stories.mkdir(parents=True)
     f = stories / "x.md"
-    f.write_text("From noreply@example.invalid\n", encoding="utf-8")
+    f.write_text("From noreply@hva.nl\n", encoding="utf-8")
     monkeypatch.setattr(mod, "STORIES_ROOT", tmp_path / "src" / "stories")
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "LOCAL_DIR", tmp_path / ".local")
     allow = tmp_path / "a.txt"
-    allow.write_text("noreply@example.invalid\n", encoding="utf-8")
+    allow.write_text("noreply@hva.nl\n", encoding="utf-8")
     code = mod.main(
         [
             str(f),
@@ -1434,7 +1592,17 @@ def test_cli_fail_on_prose_damage_poison_map(mod, tmp_path, monkeypatch, capsys)
     map_path = tmp_path / "m.json"
     # Poison: deny-listed key in map (would have over-scrubbed before deny wiring)
     map_path.write_text(
-        json.dumps({"emails": {}, "names": {"not": "PERSON_016"}, "usernames": {}, "phones": {}, "ibans": {}, "orgs": {}, "counters": {"person": 16}}),
+        json.dumps(
+            {
+                "emails": {},
+                "names": {"not": "PERSON_016"},
+                "usernames": {},
+                "phones": {},
+                "ibans": {},
+                "orgs": {},
+                "counters": {"person": 16},
+            }
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)

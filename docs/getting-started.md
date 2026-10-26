@@ -62,6 +62,7 @@ pii-intake-pseudonymizer-sn inbox/raw --promote STORY-1000
 ```
 
 Omit `--promote STORY-1000` if you only need `inbox/clean/` staging.
+Promote **merges** verified files (keeps siblings); use `--replace-target` to wipe the target, and `--allow-skipped-binary` only if Excel/PDF skips are intentional.
 
 Output lands in `inbox/clean/` with stable tokens. Raw text sources are deleted after successful write unless `--keep-raw`.
 

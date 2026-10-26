@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Local offline PII intake pseudonymizer for inbox intake.
+"""Local offline PII scrubber / pseudonymizer for inbox intake.
 
 Drop files in inbox/raw/, run this script, use inbox/clean/ or --promote.
 Successful writes from inbox/raw delete scrubbed sources by default (--keep-raw to retain).
 inbox/clean is this-run staging: leftovers are pruned after a successful write
-(--keep-clean to retain). --promote copies then clears staging (never deletes src/stories).
+(--keep-clean to retain). --promote (story id) or --promote-to (repo-relative dir)
+copies then clears staging (never deletes src/stories). --clear-clean empties staging.
+--promote/--promote-to also run standalone when inbox/raw is empty and staging is verified.
 Use --in-place to rewrite story docs under src/stories (path-preserving).
 Detect-only gate: --summary --dry-run --fail-on-hits on src/stories paths
 (redacted counts only; never use --report in gates).
@@ -13,7 +15,8 @@ Harvests labeled Jira/SN person-field names (slash/comma/bullets) into the map.
 Optional --ner (Presidio) is OFF by default. Map is encrypted at rest (key outside sync).
 Never commit .local/pii-map.json. Mapped tokens are pseudonyms, not anonymous.
 
-See README.md for install, inbox/raw intake, and src/stories commit-gate usage.
+Architecture: docs/architecture/pii-intake-pipeline.md
+Runbook: docs/development/pii-intake-anonymization.md
 """
 
 from __future__ import annotations
@@ -26,8 +29,10 @@ import hmac
 import io
 import ipaddress
 import json
+import os
 import re
 import shutil
+import stat
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -39,7 +44,6 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import intake_manifest as _manifest  # noqa: E402
 import pii_detectors as _det  # noqa: E402
 import pii_map_crypto as _crypto  # noqa: E402
 
@@ -102,8 +106,9 @@ _PROSE_DAMAGE_PROBE = frozenset(
     }
 )
 
+# Bound local/domain lengths so long alnum runs without "@" stay O(n).
 EMAIL_SIMPLE_RE = re.compile(
-    r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
+    r"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{1,253}\.[A-Za-z]{2,63}",
     re.IGNORECASE,
 )
 SYS_USER_TAG_RE = re.compile(
@@ -193,7 +198,9 @@ class PiiMap:
     _ephemeral_hmac_key: bytes = field(default_factory=lambda: b"", repr=False)
 
     @classmethod
-    def empty(cls, path: Path, *, status: str = "missing", irreversible: bool = False) -> PiiMap:
+    def empty(
+        cls, path: Path, *, status: str = "missing", irreversible: bool = False
+    ) -> PiiMap:
         return cls(
             path=path,
             counters=dict(_DEFAULT_COUNTERS),
@@ -212,7 +219,9 @@ class PiiMap:
         if irreversible:
             return cls.empty(path, status="irreversible", irreversible=True)
 
-        data, status = _crypto.load_map_dict(path, repo_root=REPO_ROOT, require_key=require_key)
+        data, status = _crypto.load_map_dict(
+            path, repo_root=REPO_ROOT, require_key=require_key
+        )
         if status in {"unavailable", "missing"} and not data:
             return cls.empty(path, status=status)
 
@@ -228,7 +237,10 @@ class PiiMap:
             orgs={k: v for k, v in (data.get("orgs") or {}).items()},
             ips=dict(data.get("ips") or {}),
             phones={k.lower(): v for k, v in (data.get("phones") or {}).items()},
-            ibans={k.upper().replace(" ", ""): v for k, v in (data.get("ibans") or {}).items()},
+            ibans={
+                k.upper().replace(" ", ""): v
+                for k, v in (data.get("ibans") or {}).items()
+            },
             bsns=dict(data.get("bsns") or {}),
             macs={k.lower(): v for k, v in (data.get("macs") or {}).items()},
             postcodes={k.lower(): v for k, v in (data.get("postcodes") or {}).items()},
@@ -264,7 +276,9 @@ class PiiMap:
     def save(self) -> None:
         if self.irreversible:
             return
-        _crypto.save_map_dict(self.path, self.to_payload(), repo_root=REPO_ROOT, create_key=True)
+        _crypto.save_map_dict(
+            self.path, self.to_payload(), repo_root=REPO_ROOT, create_key=True
+        )
         self.status = "ok"
 
     def prune_unused(self, used_tokens: set[str]) -> int:
@@ -424,7 +438,9 @@ class PiiMap:
             else:
                 n = self._next("postcode")
                 self.postcodes[key] = (
-                    f"9999 XX{n:02d}" if " " in value or len(value) > 6 else f"9999XX{n:02d}"
+                    f"9999 XX{n:02d}"
+                    if " " in value or len(value) > 6
+                    else f"9999XX{n:02d}"
                 )
         return self.postcodes[key]
 
@@ -1362,7 +1378,8 @@ def anonymize_text(
 
     # 1) Emails — Name <email> first, then bare addresses
     name_angle = re.compile(
-        r"([A-Za-z][A-Za-z0-9 .'_-]{0,80}?)\s*<\s*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})\s*>",
+        r"([A-Za-z][A-Za-z0-9 .'_-]{0,80}?)\s*<\s*"
+        r"([A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{1,253}\.[A-Za-z]{2,63})\s*>",
         re.IGNORECASE,
     )
 
@@ -1470,7 +1487,9 @@ def anonymize_text(
             continue
         pattern = re.compile(rf"\b{re.escape(real)}\b", re.IGNORECASE)
 
-        def name_plain_sub(m: re.Match[str], _tok: str = token, _real: str = real) -> str:
+        def name_plain_sub(
+            m: re.Match[str], _tok: str = token, _real: str = real
+        ) -> str:
             if _match_inside_email(m) or is_pseudo_token(m.group(0)):
                 return m.group(0)
             hits.append(Hit("name", m.group(0), _tok, source))
@@ -1559,11 +1578,15 @@ def anonymize_text(
             out = pattern.sub(cert_sub, out, count=1)
 
     if also_paths:
-        for path_val in sorted(set(_det.find_absolute_paths(out)), key=len, reverse=True):
+        for path_val in sorted(
+            set(_det.find_absolute_paths(out)), key=len, reverse=True
+        ):
             token = pii_map.path_token(path_val)
             pattern = re.compile(re.escape(path_val))
 
-            def path_sub(m: re.Match[str], _tok: str = token, _p: str = path_val) -> str:
+            def path_sub(
+                m: re.Match[str], _tok: str = token, _p: str = path_val
+            ) -> str:
                 hits.append(Hit("path", _p, _tok, source))
                 return _tok
 
@@ -1684,29 +1707,137 @@ def mirror_out_path(src: Path, raw_root: Path, clean_root: Path) -> Path:
     return clean_root / rel
 
 
-def promote_clean(clean_root: Path, story_id: str) -> Path:
+def _force_remove_tree(path: Path) -> None:
+    """rmtree that clears Windows read-only attributes (OneDrive 'R') first."""
+
+    def _onerror(func, p, _exc):  # noqa: ANN001, ANN202
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            pass
+
+    shutil.rmtree(path, onerror=_onerror)
+
+
+def resolve_story_promote_target(story_id: str) -> Path:
+    """Map a story id (--promote) to src/stories/<id>/intake-clean/."""
     m = re.fullmatch(r"(STORY-\d+|STRY\d+)", story_id, re.IGNORECASE)
     if not m:
         raise ValueError(f"Invalid story id for --promote: {story_id}")
-    dest = REPO_ROOT / "src" / "stories" / m.group(1)
-    dest.mkdir(parents=True, exist_ok=True)
-    # Copy all clean files into dest/inbox-clean/ to avoid clobbering existing story layout
-    target = dest / "intake-clean"
-    if target.exists():
-        shutil.rmtree(target)
-    shutil.copytree(clean_root, target, ignore=shutil.ignore_patterns(".gitkeep"))
+    return STORIES_ROOT / m.group(1) / "intake-clean"
+
+
+def resolve_promote_to_target(spec: str) -> Path:
+    """Map --promote-to to an in-repo directory (reject inbox/, .local/, outside repo)."""
+    m = re.fullmatch(r"(STORY-\d+|STRY\d+)", spec, re.IGNORECASE)
+    if m:
+        return STORIES_ROOT / m.group(1) / "intake-clean"
+    raw = Path(spec)
+    root = REPO_ROOT.resolve()
+    target = None if raw.is_absolute() else (root / raw).resolve()
+    rel = ""
+    if target is not None:
+        try:
+            rel = target.relative_to(root).as_posix().lower()
+        except ValueError:
+            target = None
+    if (
+        target is None
+        or rel in ("", "inbox", ".local")
+        or rel.startswith(("inbox/", ".local/"))
+    ):
+        raise ValueError(
+            f"--promote-to must be an in-repo dir outside inbox/ and .local/: {spec}"
+        )
     return target
 
 
+def promote_clean(
+    clean_root: Path,
+    target: Path,
+    *,
+    replace_target: bool = False,
+    require_all_verified: bool = False,
+) -> Path:
+    """Merge checksum-verified staging into target (or replace when requested).
+
+    Default: copy only verified non-``.gitkeep`` files from ``clean_root`` into
+    ``target``; never delete unrelated existing files in ``target``.
+    ``replace_target=True`` wipes ``target`` first (destructive opt-in).
+    Fail-closed when no verified files exist. When ``require_all_verified``
+    (standalone adopt), also fail if any staging file lacks a manifest checksum.
+    """
+    total = count_clean_files(clean_root)
+    if total == 0:
+        raise ValueError("inbox/clean staging is empty; nothing to promote")
+    verified = _verified_clean_files(clean_root)
+    if not verified:
+        raise ValueError(
+            "inbox/clean has no checksum-verified files "
+            "(missing/stale manifest); re-drop into inbox/raw and re-scrub first"
+        )
+    unverified = total - len(verified)
+    if unverified > 0 and require_all_verified:
+        raise ValueError(
+            f"inbox/clean has {unverified} unverified file(s) "
+            "(missing/stale manifest); re-drop into inbox/raw and re-scrub first"
+        )
+    if unverified > 0:
+        print(
+            f"warning: promoting {len(verified)} verified file(s); "
+            f"skipping {unverified} unverified staging file(s)",
+            file=sys.stderr,
+        )
+    if replace_target and target.exists():
+        _force_remove_tree(target)
+    target.mkdir(parents=True, exist_ok=True)
+    for src in verified:
+        rel = src.relative_to(clean_root)
+        dest = target / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+    return target
+
+
+def count_clean_files(clean_root: Path) -> int:
+    """Non-.gitkeep files currently under inbox/clean (0 if missing)."""
+    if not clean_root.is_dir():
+        return 0
+    return sum(1 for p in clean_root.rglob("*") if p.is_file() and p.name != ".gitkeep")
+
+
+def _verified_clean_files(clean_root: Path) -> list[Path]:
+    """Clean staging files whose sha256 matches a recorded successful write."""
+    if not clean_root.is_dir():
+        return []
+    _pd = _pii_detect()
+    return [
+        p
+        for p in clean_root.rglob("*")
+        if p.is_file()
+        and p.name != ".gitkeep"
+        and _pd.is_verified_intake_output(str(p), REPO_ROOT, local_dir=LOCAL_DIR)
+    ]
+
+
+def _pii_detect():
+    """Intake manifest helpers (public extract — no Cursor hooks)."""
+    import intake_manifest as _pd  # noqa: PLC0415
+
+    return _pd
+
+
 def _record_intake_outputs(dests: list[Path]) -> None:
-    """Record successful clean/promote writes in the intake manifest."""
+    """Tell the read hook these clean/promote files came from a successful scrub."""
     if not dests:
         return
+    _pd = _pii_detect()
     for dest in dests:
         if dest.is_dir():
-            _manifest.record_intake_tree(dest, REPO_ROOT, local_dir=LOCAL_DIR)
+            _pd.record_intake_tree(dest, REPO_ROOT, local_dir=LOCAL_DIR)
         elif dest.is_file():
-            _manifest.record_intake_write(dest, REPO_ROOT, local_dir=LOCAL_DIR)
+            _pd.record_intake_write(dest, REPO_ROOT, local_dir=LOCAL_DIR)
 
 
 def _under_dir(path: Path, root: Path) -> bool:
@@ -1761,16 +1892,27 @@ def prune_clean_not_kept(clean_root: Path, keep: set[Path]) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Anonymize PII in inbox/raw locally (offline).")
+    p = argparse.ArgumentParser(
+        description="Anonymize PII in inbox/raw locally (offline)."
+    )
     p.add_argument(
         "paths",
         nargs="*",
         default=[],
         help="File(s) or directory(ies); default inbox/raw (non-gate). Gate mode: src/stories paths.",
     )
-    p.add_argument("--out", type=str, default="", help="Output file or directory (default: inbox/clean mirror)")
-    p.add_argument("--map", type=str, default=str(DEFAULT_MAP), help="Path to pii-map.json")
-    p.add_argument("--allowlist", type=str, default=str(DEFAULT_ALLOWLIST), help="Allowlist file")
+    p.add_argument(
+        "--out",
+        type=str,
+        default="",
+        help="Output file or directory (default: inbox/clean mirror)",
+    )
+    p.add_argument(
+        "--map", type=str, default=str(DEFAULT_MAP), help="Path to pii-map.json"
+    )
+    p.add_argument(
+        "--allowlist", type=str, default=str(DEFAULT_ALLOWLIST), help="Allowlist file"
+    )
     p.add_argument("--dry-run", action="store_true", help="Do not write output or map")
     p.add_argument(
         "--report",
@@ -1802,7 +1944,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit 1 if scrub would replace deny-listed/short name tokens or probe stopwords "
         "disappear from text (over-scrub guard). Counts only; safe with agent-safe.",
     )
-    p.add_argument("--also-ip", action="store_true", help="Also anonymize IPv4/IPv6 addresses (default off)")
+    p.add_argument(
+        "--also-ip",
+        action="store_true",
+        help="Also anonymize IPv4/IPv6 addresses (default off)",
+    )
     p.add_argument(
         "--also-machines",
         action="store_true",
@@ -1828,6 +1974,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable --also-machines, --also-paths, --also-commands, and --also-certificates "
         "(default off; use for logs/exports with hostnames, paths, shell lines, or PEM)",
+    )
+    p.add_argument(
+        "--also-sn-export",
+        action="store_true",
+        help="Alias of --also-technical for ServiceNow unload XML intake (default off)",
     )
     p.add_argument(
         "--also-nl-id",
@@ -1916,7 +2067,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--promote",
         type=str,
         default="",
-        help="After write, copy inbox/clean into src/stories/<id>/intake-clean/",
+        help="After write, copy inbox/clean into src/stories/<id>/intake-clean/ "
+        "(story id; standalone when inbox/raw is empty and staging is verified)",
+    )
+    p.add_argument(
+        "--promote-to",
+        type=str,
+        default="",
+        help="After write, merge verified inbox/clean into a repo-relative directory "
+        "(e.g. docs/development, scripts, src/stories/STORY-9/intake-clean); "
+        "then clears staging. Refuses inbox/ and .local/.",
+    )
+    p.add_argument(
+        "--replace-target",
+        action="store_true",
+        help="With --promote / --promote-to: delete the target directory before "
+        "copying (default: merge verified files only; leave non-overlapping "
+        "siblings intact)",
+    )
+    p.add_argument(
+        "--allow-skipped-binary",
+        action="store_true",
+        help="Allow --promote / --promote-to when skipped_binary > 0 "
+        "(default: refuse — Excel/PDF were not scrubbed)",
+    )
+    p.add_argument(
+        "--clear-clean",
+        action="store_true",
+        help="Clear inbox/clean staging (keeps .gitkeep) and drop its manifest keys, "
+        "then exit",
+    )
+    p.add_argument(
+        "--fail-on-leftover-clean",
+        action="store_true",
+        help="Exit non-zero if non-.gitkeep files remain in inbox/clean after "
+        "a successful write",
     )
     p.add_argument(
         "--keep-raw",
@@ -1966,14 +2151,27 @@ def _validate_gate_mode(args: argparse.Namespace) -> str | None:
     """Return error message if gate (--summary) argv is invalid."""
     if not args.summary:
         return None
-    if args.report:
-        return "gate mode (--summary) cannot be combined with --report (PII in logs)"
-    if args.in_place:
-        return f"gate mode (--summary) cannot be combined with --in-place. {MSG_SUMMARY_NOT_IN_PLACE}"
-    if args.promote:
-        return "gate mode (--summary) cannot be combined with --promote"
-    if args.out:
-        return "gate mode (--summary) cannot be combined with --out"
+    conflicts = [
+        (
+            args.report,
+            "gate mode (--summary) cannot be combined with --report (PII in logs)",
+        ),
+        (
+            args.in_place,
+            "gate mode (--summary) cannot be combined with --in-place. "
+            + MSG_SUMMARY_NOT_IN_PLACE,
+        ),
+        (args.promote, "gate mode (--summary) cannot be combined with --promote"),
+        (args.promote_to, "gate mode (--summary) cannot be combined with --promote-to"),
+        (
+            args.clear_clean,
+            "gate mode (--summary) cannot be combined with --clear-clean",
+        ),
+        (args.out, "gate mode (--summary) cannot be combined with --out"),
+    ]
+    for active, message in conflicts:
+        if active:
+            return message
     return None
 
 
@@ -2004,7 +2202,9 @@ def _validate_agent_safe(args: argparse.Namespace) -> str | None:
     return None
 
 
-def _apply_agent_safe_defaults(args: argparse.Namespace, argv: list[str] | None) -> None:
+def _apply_agent_safe_defaults(
+    args: argparse.Namespace, argv: list[str] | None
+) -> None:
     """--report alone opts out of default agent-safe; explicit --agent-safe --report stays conflicting."""
     argv_list = list(argv) if argv is not None else sys.argv[1:]
     explicit_agent_safe = "--agent-safe" in argv_list
@@ -2015,7 +2215,9 @@ def _apply_agent_safe_defaults(args: argparse.Namespace, argv: list[str] | None)
 def _validate_gate_targets(targets: list[Path], raw_root: Path) -> str | None:
     for target in targets:
         if under_root(target, raw_root) or target == raw_root:
-            return f"{MSG_SUMMARY_NOT_INTAKE} (refused inbox/raw: {_rel_to_repo(target)})"
+            return (
+                f"{MSG_SUMMARY_NOT_INTAKE} (refused inbox/raw: {_rel_to_repo(target)})"
+            )
         if under_root(target, LOCAL_DIR) or target == LOCAL_DIR.resolve():
             return f"gate mode refuses .local path: {_rel_to_repo(target)}"
         if not under_root(target, STORIES_ROOT) and target != STORIES_ROOT.resolve():
@@ -2027,11 +2229,61 @@ def _validate_gate_targets(targets: list[Path], raw_root: Path) -> str | None:
 
 def _apply_also_technical(args: argparse.Namespace) -> None:
     """Bundle opt-in machine/path/command/certificate scrub flags."""
-    if getattr(args, "also_technical", False):
+    if getattr(args, "also_technical", False) or getattr(args, "also_sn_export", False):
         args.also_machines = True
         args.also_paths = True
         args.also_commands = True
         args.also_certificates = True
+
+
+def _standalone_adopt(args: argparse.Namespace, clean_root: Path) -> int:
+    """Adopt already-verified inbox/clean staging when inbox/raw is empty.
+
+    Lets a bare scrub (which deletes raw) be promoted afterwards without the
+    drop -> scrub -> promote round-trip. Only checksum-verified staging is copied.
+    """
+    total = count_clean_files(clean_root)
+    if total == 0:
+        print("error: inbox/clean staging is empty; nothing to adopt", file=sys.stderr)
+        return 2
+    verified = _verified_clean_files(clean_root)
+    if len(verified) != total:
+        print(
+            f"error: inbox/clean has {total - len(verified)} unverified file(s) "
+            "(missing/stale manifest); re-drop into inbox/raw and re-scrub first.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.dry_run:
+        print(
+            f"promote=dry-run staging={total} verified={len(verified)} "
+            "(would copy then clear staging)"
+        )
+        return 0
+    if args.promote:
+        target = resolve_story_promote_target(args.promote)
+    else:
+        target = resolve_promote_to_target(args.promote_to)
+    dest = promote_clean(
+        clean_root,
+        target,
+        replace_target=bool(getattr(args, "replace_target", False)),
+        require_all_verified=True,
+    )
+    print(f"promoted clean tree -> {dest.relative_to(REPO_ROOT)}")
+    try:
+        _record_intake_outputs([dest])
+        _pd = _pii_detect()
+        _pd.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
+    except OSError as e:
+        print(f"error: could not record intake manifest: {e}", file=sys.stderr)
+        return 2
+    if args.keep_clean:
+        print(f"promoted={total} verified={len(verified)} keep_clean=1")
+    else:
+        deleted = clear_clean_staging(clean_root)
+        print(f"deleted_clean={deleted} promoted={total} verified={len(verified)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2054,7 +2306,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.map_migrate:
         try:
-            status = _crypto.migrate_plaintext_to_encrypted(map_path, repo_root=REPO_ROOT)
+            status = _crypto.migrate_plaintext_to_encrypted(
+                map_path, repo_root=REPO_ROOT
+            )
         except _crypto.MapCryptoError as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
@@ -2079,13 +2333,51 @@ def main(argv: list[str] | None = None) -> int:
     if args.agent_safe:
         args.report = False
 
-    if args.in_place and (args.out or args.promote):
-        print("error: --in-place cannot be combined with --out or --promote", file=sys.stderr)
+    if args.in_place and (args.out or args.promote or args.promote_to):
+        print(
+            "error: --in-place cannot be combined with --out, --promote, or --promote-to",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.promote and args.promote_to:
+        print(
+            "error: --promote and --promote-to are mutually exclusive",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.clear_clean and (
+        args.promote or args.promote_to or args.out or args.in_place
+    ):
+        print(
+            "error: --clear-clean cannot be combined with --promote / --promote-to / "
+            "--out / --in-place",
+            file=sys.stderr,
+        )
         return 2
 
     if args.irreversible and args.map_prune_unused:
-        print("error: --irreversible cannot combine with --map-prune-unused", file=sys.stderr)
+        print(
+            "error: --irreversible cannot combine with --map-prune-unused",
+            file=sys.stderr,
+        )
         return 2
+
+    if args.clear_clean:
+        n = count_clean_files(clean_root)
+        if args.dry_run:
+            print(f"clear_clean=dry-run would_delete={n}")
+            return 0
+        deleted = clear_clean_staging(clean_root)
+        dropped = 0
+        try:
+            _pd = _pii_detect()
+            dropped = _pd.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
+        except OSError as e:
+            print(f"warning: could not drop clean manifest keys: {e}", file=sys.stderr)
+        print(f"deleted_clean={deleted} dropped_manifest={dropped}")
+        return 0
 
     path_args = list(args.paths)
     if not path_args:
@@ -2147,6 +2439,13 @@ def main(argv: list[str] | None = None) -> int:
 
     map_status = pii_map.status
     files, skipped_export, skipped_binary = collect_files_multi(targets)
+
+    if not files and (args.promote or args.promote_to):
+        try:
+            return _standalone_adopt(args, clean_root)
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
 
     if not files:
         if skipped_export > 0 and skipped_binary == 0:
@@ -2225,16 +2524,17 @@ def main(argv: list[str] | None = None) -> int:
 
     high_conf = residual_merged.high_confidence_count
     abort_write = (
-        high_conf > 0 and not args.dry_run and not args.summary and not args.per_file_summary
+        high_conf > 0
+        and not args.dry_run
+        and not args.summary
+        and not args.per_file_summary
     )
 
     ner_status = "off"
     if args.ner:
         ner_status = "ok" if any(s == "ok" for s in ner_statuses) else "skipped"
 
-    prose_damage = prose_damage_counts(
-        all_hits, pending, original_texts=original_texts
-    )
+    prose_damage = prose_damage_counts(all_hits, pending, original_texts=original_texts)
     poison_keys = map_poison_key_count(pii_map)
     if poison_keys:
         prose_damage = {
@@ -2261,6 +2561,7 @@ def main(argv: list[str] | None = None) -> int:
     delete_raw_failures = 0
     deleted_clean = 0
     delete_clean_failures = 0
+    leftover_clean = 0
     recorded_dests: list[Path] = []
     pruned_map = 0
 
@@ -2286,7 +2587,9 @@ def main(argv: list[str] | None = None) -> int:
                 dest = src
             elif args.out:
                 out_arg = resolve_repo_path(Path(args.out))
-                if len(files) == 1 and (out_arg.suffix or not out_arg.exists() or out_arg.is_file()):
+                if len(files) == 1 and (
+                    out_arg.suffix or not out_arg.exists() or out_arg.is_file()
+                ):
                     dest = out_arg
                 else:
                     if under_raw(src, raw_root):
@@ -2369,9 +2672,35 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
 
-        if args.promote:
+        if args.promote or args.promote_to:
+            if skipped_binary > 0 and not getattr(args, "allow_skipped_binary", False):
+                print(
+                    f"error: skipped_binary={skipped_binary} — refuse promote "
+                    "(Excel/PDF not scrubbed). Convert to CSV/TSV and re-scrub, "
+                    "or pass --allow-skipped-binary",
+                    file=sys.stderr,
+                )
+                return 2
             try:
-                dest = promote_clean(clean_root, args.promote)
+                # Record clean staging first so promote_clean can fail-closed
+                # on checksum-verified files only.
+                _record_intake_outputs(
+                    [
+                        d
+                        for d in recorded_dests
+                        if d.is_file() and _under_dir(d, clean_root)
+                    ]
+                )
+                target = (
+                    resolve_story_promote_target(args.promote)
+                    if args.promote
+                    else resolve_promote_to_target(args.promote_to)
+                )
+                dest = promote_clean(
+                    clean_root,
+                    target,
+                    replace_target=bool(getattr(args, "replace_target", False)),
+                )
                 print(f"promoted clean tree -> {dest.relative_to(REPO_ROOT)}")
                 recorded_dests.append(dest)
             except ValueError as e:
@@ -2385,20 +2714,31 @@ def main(argv: list[str] | None = None) -> int:
 
         if manage_staging:
             try:
-                if args.promote:
+                _pd = _pii_detect()
+                if args.promote or args.promote_to:
                     deleted_clean += clear_clean_staging(clean_root)
-                    _manifest.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
+                    _pd.drop_inbox_clean_manifest_keys(REPO_ROOT, local_dir=LOCAL_DIR)
                 elif wrote_under_clean:
                     keep_rels = {
                         _rel_to_repo(d).replace("\\", "/") for d in wrote_under_clean
                     }
-                    _manifest.retain_inbox_clean_manifest_keys(
+                    _pd.retain_inbox_clean_manifest_keys(
                         REPO_ROOT, keep_rels, local_dir=LOCAL_DIR
                     )
             except OSError as e:
                 delete_clean_failures += 1
                 print(
                     f"warning: could not prune inbox/clean staging: {e}",
+                    file=sys.stderr,
+                )
+
+        if manage_staging:
+            leftover_clean = count_clean_files(clean_root)
+            if leftover_clean:
+                print(
+                    f"warning: inbox/clean still has {leftover_clean} leftover "
+                    "file(s) after this run; inspect, or re-run with --keep-clean "
+                    "if intentional",
                     file=sys.stderr,
                 )
 
@@ -2412,11 +2752,17 @@ def main(argv: list[str] | None = None) -> int:
             "delete_raw_failures": delete_raw_failures,
             "deleted_clean": deleted_clean,
             "delete_clean_failures": delete_clean_failures,
+            "leftover_clean": leftover_clean,
             "keep_raw": args.keep_raw,
             "keep_clean": args.keep_clean,
             "dry_run": args.dry_run,
             "hits": [
-                {"kind": h.kind, "original": h.original, "replacement": h.replacement, "path": h.path}
+                {
+                    "kind": h.kind,
+                    "original": h.original,
+                    "replacement": h.replacement,
+                    "path": h.path,
+                }
                 for h in all_hits
             ],
             "residual_emails": sorted(set(residual_all)),
@@ -2483,8 +2829,12 @@ def main(argv: list[str] | None = None) -> int:
             msg += f" delete_raw_failures={delete_raw_failures}"
         if delete_clean_failures > 0:
             msg += f" delete_clean_failures={delete_clean_failures}"
+        if leftover_clean:
+            msg += f" leftover_clean={leftover_clean}"
         if residual_merged.warn_count and not high_conf:
-            msg += " NOTE: low-confidence residuals are counts/warn only (not fail-write)"
+            msg += (
+                " NOTE: low-confidence residuals are counts/warn only (not fail-write)"
+            )
         if skipped_binary > 0:
             msg += (
                 " NOTE: skipped_binary files are NOT scrubbed — "
@@ -2496,6 +2846,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.fail_on_hits and all_hits:
         return 1
+    if args.fail_on_leftover_clean and leftover_clean:
+        return 2
     return 0
 
 

@@ -55,3 +55,12 @@ Output with a persisted map is **pseudonymization** (reversible with the key). U
 ## Reporting issues
 
 Do not open public issues with real PII. Redact samples and state which mode (`--summary`, `--dry-run`, write) and key setup you used. See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+## Agent tooling (optional)
+
+This public CLI does **not** ship Cursor Read/shell hooks. Without adopter-added hooks, agents can still open local files — treat that as **fail-open** for agent Read. Use gitignore + the commit gate, and prefer not pasting raw exports into chat.
+
+Root `inbox/README.md` is the only tracked docs path under `inbox/`. A `README.md` under `raw/` or `instance-upload/` is a payload, not documentation.
+
+`residual=0` does not mean free-text person names are gone — spot-check `inbox/clean/` before promote.
+

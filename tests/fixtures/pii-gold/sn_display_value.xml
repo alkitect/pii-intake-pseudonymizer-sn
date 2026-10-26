@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<unload>
+  <sys_user action="INSERT_OR_UPDATE">
+    <name display_value="Alex Example">sysid001</name>
+    <email>alex.example@example.invalid</email>
+  </sys_user>
+</unload>

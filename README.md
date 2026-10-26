@@ -18,7 +18,13 @@ Safe default: start with `--dry-run` (or `--summary` on story docs). A map key i
 
 ## Who this is for
 
-People who export ServiceNow records as XML and need them scrubbed locally before the files leave the machine, enter a shared story tree, or get pasted into AI chat / agent workflows.
+Developers who want agentic AI for coding, architecture, programming, and debugging, without feeding company or personal data into the model or the agent context.
+
+Typical fit:
+
+- Work from ServiceNow XML exports (and notes beside them)
+- Scrub locally first so agents and hosted models only see the technical shape of the problem
+- Keep emails, names, and org identifiers out of chat, prompts, and shared story trees
 
 Not for certified de-identification pipelines, scrubbing old git history, or converting spreadsheets and PDFs in place.
 
@@ -37,7 +43,7 @@ Stable path: clone or download a tag from [Releases](https://github.com/alkitect
 ```bash
 git clone https://github.com/alkitect/pii-intake-pseudonymizer-sn.git
 cd pii-intake-pseudonymizer-sn
-# optional: git checkout v0.2.4
+# optional: git checkout v0.2.5
 ./scripts/install-to-local.sh
 python -m pip install -r requirements-pii.txt pytest
 ```

@@ -122,5 +122,80 @@ test ! -e "${HOME}/.local/bin/pii-intake-pseudonymizer-sn"
 test ! -e "${HOME}/.local/bin/verify-pii-intake-pseudonymizer-sn"
 test ! -d "${XDG_DATA_HOME}/pii-intake-pseudonymizer-sn"
 
+# --- must-not-ship (public extract) ---
+# Keepers under inbox/{raw,clean,instance-upload} are allowed; payloads are not.
+fail_on() {
+  echo "ci-check: FAIL must-not-ship: $1" >&2
+  exit 1
+}
+if [[ -d .cursor/hooks ]]; then fail_on ".cursor/hooks present"; fi
+if [[ -f .local/pii-map.json || -f .local/pii-map.json.bak ]]; then fail_on "pii-map present"; fi
+# Indexed / worktree map + key artifacts
+while IFS= read -r tracked; do
+  case "${tracked}" in
+    *.key|.local/pii-map.json|.local/pii-map.json.bak|*/pii-map.json|*/pii-map.json.bak)
+      fail_on "tracked map/key path: ${tracked}"
+      ;;
+    .cursor/hooks/*)
+      fail_on "tracked hooks path: ${tracked}"
+      ;;
+  esac
+done < <(git ls-files)
+
+python3 - <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+prefixes = [
+    Path("inbox") / "raw",
+    Path("inbox") / "instance-upload",
+    Path("inbox") / "clean",
+]
+for d in prefixes:
+    if not d.is_dir():
+        continue
+    for p in d.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.name == ".gitkeep" and p.stat().st_size == 0:
+            continue
+        print(f"payload: {p.as_posix()}", file=sys.stderr)
+        sys.exit(1)
+
+# Non-empty WORKDIR_SYNC SHA (no placeholder)
+sync = Path("docs/WORKDIR_SYNC.md")
+if sync.is_file():
+    text = sync.read_text(encoding="utf-8", errors="ignore")
+    if "WORKDIR_SHA=<fill" in text or "WORKDIR_SHA=TODO" in text:
+        print("ci-check: WORKDIR_SYNC still has placeholder SHA", file=sys.stderr)
+        sys.exit(1)
+    if not re.search(r"WORKDIR_SHA=[0-9a-f]{7,40}", text):
+        print("ci-check: WORKDIR_SYNC missing WORKDIR_SHA=<hex>", file=sys.stderr)
+        sys.exit(1)
+
+pat = re.compile(r"ESM-\d+")
+# Fail on org story ids in tracked text files
+tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+for rel in tracked:
+    p = Path(rel)
+    if p.suffix.lower() not in {".md", ".py", ".sh", ".txt", ".yml", ".yaml"}:
+        continue
+    if "CHANGELOG" in p.name:
+        continue
+    try:
+        text = p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        continue
+    if pat.search(text):
+        print(f"ci-check: org story id ESM-* in {p.as_posix()} (use STORY-*)", file=sys.stderr)
+        sys.exit(1)
+PY
+
+# Unit tests (presence + execution)
+python -m pytest -q tests/unit
+# --- end must-not-ship ---
+
 echo "ci-check: OK"
 

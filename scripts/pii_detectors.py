@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib PII detectors shared by the anonymize CLI (no Presidio / NER).
+"""Stdlib PII detectors shared by anonymize CLI and hooks (no Presidio / NER).
 
 Covers phones, IBAN (mod-97), optional BSN (11-proef), MAC, NL postcode,
 labeled DOB, high-confidence residual scanning after scrub, and optional
@@ -37,14 +37,10 @@ BSN_LABELED_RE = re.compile(
 BSN_BARE_RE = re.compile(r"(?<!\d)(\d{9})(?!\d)")
 
 # --- MAC ---
-MAC_RE = re.compile(
-    r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b"
-)
+MAC_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
 # --- NL postcode + optional street context ---
-NL_POSTCODE_RE = re.compile(
-    r"\b([1-9]\d{3}\s?[A-Za-z]{2})\b"
-)
+NL_POSTCODE_RE = re.compile(r"\b([1-9]\d{3}\s?[A-Za-z]{2})\b")
 NL_STREET_POSTCODE_RE = re.compile(
     r"(?i)\b([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-']{2,40}\s+\d{1,5}[a-zA-Z]?)\s*,?\s*"
     r"([1-9]\d{3}\s?[A-Za-z]{2})\b"
@@ -59,12 +55,14 @@ DOB_LABELED_RE = re.compile(
     r")"
 )
 
+# Bound local/domain lengths (RFC 5321-ish) so long alnum runs without "@"
+# stay O(n) — unbounded "+" before "@" is quadratic on 50k+ noise.
 EMAIL_RE = re.compile(
-    r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
+    r"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{1,253}\.[A-Za-z]{2,63}",
     re.IGNORECASE,
 )
 
-# --- Opt-in scrub extensions (default off via CLI) ---
+# --- Opt-in scrub extensions (default off via CLI; hooks may detect risk only) ---
 MAX_PEM_BLOCK_CHARS = 65536
 MAX_CMD_LINE_CHARS = 500
 
@@ -80,9 +78,7 @@ LABELED_MACHINE_RE = re.compile(
     r"([A-Za-z0-9][A-Za-z0-9._-]{0,62})"
 )
 
-WIN_ABS_PATH_RE = re.compile(
-    r"(?<![@\w])([A-Za-z]:\\(?:[^\s\"'<>|\r\n]+\\?)+)"
-)
+WIN_ABS_PATH_RE = re.compile(r"(?<![@\w])([A-Za-z]:\\(?:[^\s\"'<>|\r\n]+\\?)+)")
 
 UNIX_ABS_PATH_RE = re.compile(
     r"(?<![@\w:])(/(?:home|Users|tmp|opt|var|mnt)/[^\s\"'<>|\r\n]+)"
@@ -97,7 +93,7 @@ CMD_LINE_RE = re.compile(
 _PEM_BEGIN_LINE_RE = re.compile(r"^-----BEGIN [A-Z0-9 ]+-----$")
 _PEM_END_LINE_RE = re.compile(r"^-----END [A-Z0-9 ]+-----$")
 
-# Risk-only heuristic (looks_like_sensitive_technical_paste) — keep in sync with scrub heuristics above.
+# Risk-only (prompt hook) — must stay in sync with scrub heuristics above.
 PEM_BEGIN_MARKER = "-----BEGIN "
 CMD_RISK_RE = CMD_LINE_RE
 LABELED_MACHINE_RISK_RE = re.compile(
@@ -360,7 +356,7 @@ def find_pem_blocks(text: str) -> list[str]:
 
 
 def looks_like_sensitive_technical_paste(text: str) -> bool:
-    """Pre-scrub risk heuristic: PEM, command lines, labeled hostnames, absolute paths."""
+    """Prompt-risk gate: PEM, command lines, labeled hostnames, absolute paths."""
     if not text:
         return False
     if PEM_BEGIN_MARKER in text:
@@ -369,6 +365,4 @@ def looks_like_sensitive_technical_paste(text: str) -> bool:
         return True
     if LABELED_MACHINE_RISK_RE.search(text):
         return True
-    if WIN_ABS_PATH_RE.search(text) or UNIX_ABS_PATH_RE.search(text):
-        return True
-    return False
+    return bool(WIN_ABS_PATH_RE.search(text) or UNIX_ABS_PATH_RE.search(text))

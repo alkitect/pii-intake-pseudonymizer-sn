@@ -1,0 +1,4 @@
+# Shared gold fixture lock (paths relative to tests/fixtures/pii-gold/)
+# Update hashes when intentionally changing fixtures.
+nl_synthetic.md
+sn_display_value.xml

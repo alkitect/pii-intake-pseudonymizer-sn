@@ -2,7 +2,7 @@
 """PII commit gate: scan staged src/stories **index** blobs with --summary.
 
 Fail-closed. Never --report / --in-place. Never requires PII_MAP_KEY.
-Run manually or wire into your own pre-commit hook.
+Used by .githooks/pre-commit and scripts/verify-before-commit.py.
 """
 
 from __future__ import annotations
@@ -27,7 +27,37 @@ DENIED_PATTERNS = (
     "**/pii-map.json.bak",
 )
 
+# Quarantine payload dirs — only empty .gitkeep may be staged
+_QUARANTINE_PREFIXES = (
+    "inbox/raw/",
+    "inbox/instance-upload/",
+    "inbox/clean/",
+)
+
 ANONYMIZE = REPO_ROOT / "scripts" / "anonymize_intake.py"
+
+
+def _is_empty_quarantine_gitkeep(rel: str) -> bool:
+    """True when staged path is empty .gitkeep under a quarantine payload dir."""
+    norm = rel.replace("\\", "/")
+    if Path(norm).name != ".gitkeep":
+        return False
+    if not any(norm.startswith(p) for p in _QUARANTINE_PREFIXES):
+        return False
+    path = REPO_ROOT / norm
+    try:
+        if not path.is_file():
+            return True
+        return path.stat().st_size == 0
+    except OSError:
+        return True
+
+
+def _is_quarantine_payload(rel: str) -> bool:
+    norm = rel.replace("\\", "/")
+    if not any(norm.startswith(p) for p in _QUARANTINE_PREFIXES):
+        return False
+    return not _is_empty_quarantine_gitkeep(norm)
 
 
 def _die(msg: str, code: int = 1) -> int:
@@ -88,6 +118,9 @@ def denied_staged(paths: list[str]) -> list[str]:
     hits: list[str] = []
     for rel in paths:
         norm = rel.replace("\\", "/")
+        if _is_quarantine_payload(norm):
+            hits.append(norm)
+            continue
         base = Path(norm).name
         for pat in DENIED_PATTERNS:
             if fnmatch.fnmatch(norm, pat) or fnmatch.fnmatch(base, pat):

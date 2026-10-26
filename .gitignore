@@ -1,6 +1,10 @@
 # Local PII map + staging directories (must never be committed)
 .local/
-inbox/
+inbox/**
+!inbox/**/
+!inbox/**/.gitkeep
+!inbox/README.md
+
 input/
 output/
 pii-map.json

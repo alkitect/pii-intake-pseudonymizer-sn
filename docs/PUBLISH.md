@@ -4,7 +4,7 @@ Before tag: README must pass `bash scripts/ci-check.sh`. See [CONTRIBUTING.md](.
 
 First public tag: v0.1.0
 
-Current tag: v0.2.4
+Current tag: v0.2.5
 
 Repo URL: `https://github.com/alkitect/pii-intake-pseudonymizer-sn`
 
@@ -33,10 +33,10 @@ After GitHub is live:
 
 ```bash
 cd /path/to/Linux
-git submodule add -b v0.2.4 https://github.com/alkitect/pii-intake-pseudonymizer-sn.git public/pii-intake-pseudonymizer-sn
+git submodule add -b v0.2.5 https://github.com/alkitect/pii-intake-pseudonymizer-sn.git public/pii-intake-pseudonymizer-sn
 ```
 
-Pin submodule gitlink to tag `v0.2.4`, not `main`.
+Pin submodule gitlink to tag `v0.2.5`, not `main`.
 
 ## ADR edits
 

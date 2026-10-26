@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.5] - 2026-10-26
+
+### Changed
+
+- README Who section: agentic-AI workflow without exposing personal/company data
+
 ## [0.2.4] - 2026-10-26
 
 ### Changed
@@ -62,6 +68,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Commit detect-only gate on `src/stories/` (`--summary`; refused on `inbox/raw`)
 - Install/verify wrappers and `ci-check.sh` release gate
 
+[0.2.5]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.5
 [0.2.4]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.4
 [0.2.3]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.3
 [0.2.2]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.2

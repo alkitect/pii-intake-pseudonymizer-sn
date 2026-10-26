@@ -1,8 +1,9 @@
 # Examples
 
-Synthetic fixture used by unit tests — safe to read (no real PII):
+Synthetic fixtures used by unit tests (safe to read; no real PII):
 
-- [`tests/fixtures/pii-gold/nl_synthetic.md`](../../tests/fixtures/pii-gold/nl_synthetic.md) — NL-style fields the stdlib detectors target
+- [`tests/fixtures/pii-gold/sn_display_value.xml`](../../tests/fixtures/pii-gold/sn_display_value.xml) - ServiceNow-style unload XML (primary shape)
+- [`tests/fixtures/pii-gold/nl_synthetic.md`](../../tests/fixtures/pii-gold/nl_synthetic.md) - markdown / NL-style fields the stdlib detectors also cover
 
 **Typical token shapes after pseudonymization:**
 

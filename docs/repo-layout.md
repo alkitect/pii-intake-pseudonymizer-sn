@@ -1,16 +1,16 @@
 # Repo layout
 
-Expected tree for ServiceNow-style story work. Adapt story IDs to your org (`STORY-1000`, `STRY12345`, …).
+Expected tree when you quarantine ServiceNow XML (and optional markdown) under `inbox/`, then promote cleaned copies into a local story folder. Adapt story IDs to your org (`STORY-1000`, `STRY12345`, …).
 
 ```text
 repo-root/
 ├── inbox/
-│   ├── raw/          # Quarantine: drop exports here (never commit real PII)
+│   ├── raw/          # Quarantine: ServiceNow XML (+ optional .md/.txt/.json)
 │   └── clean/        # This-run staging after pseudonymization (.gitkeep ok)
 ├── src/
 │   └── stories/
 │       └── STORY-1000/
-│           ├── docs/           # Story markdown (commit-gate target)
+│           ├── docs/           # Optional notes; --summary commit-gate target
 │           └── intake-clean/   # Optional: promoted copies from inbox/clean
 ├── .local/                   # gitignored — map, manifest (never commit)
 │   ├── pii-map.json

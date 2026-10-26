@@ -1,6 +1,6 @@
 # Getting started
 
-ServiceNow / Jira story-monorepo flavor: quarantine raw exports under `inbox/raw/`, pseudonymize to `inbox/clean/`, optionally `--promote` into `src/stories/<STORY-id>/`.
+Primary target: ServiceNow XML record / unload exports. Scrub them offline so personal and company data are not committed, pasted into chat, or handed to AI agents. Drop files under `inbox/raw/`, write to `inbox/clean/`, optionally `--promote` into `src/stories/<STORY-id>/`. Markdown and other text next to the XML work the same way.
 
 ## Prerequisites
 
@@ -23,7 +23,15 @@ Wrappers: `pii-intake-pseudonymizer-sn`, `verify-pii-intake-pseudonymizer-sn`.
 
 ```bash
 mkdir -p inbox/raw inbox/clean .local src/stories/STORY-1000/docs
-echo 'Contact jane.doe@example.com for access.' > inbox/raw/sample.txt
+cat > inbox/raw/sample.xml <<'EOF'
+<?xml version="1.0"?>
+<unload>
+  <sys_user action="INSERT_OR_UPDATE">
+    <name display_value="Jane Doe">sysid001</name>
+    <email>jane.doe@example.com</email>
+  </sys_user>
+</unload>
+EOF
 ```
 
 See [Repo layout](repo-layout.md) for the full tree.
@@ -55,7 +63,7 @@ Platform defaults if you set no env var (CLI auto-loads when the file exists):
 - Windows: `%LOCALAPPDATA%/ServiceNow-PII/pii-map.key`
 - Linux/macOS: `~/.config/servicenow-pii/pii-map.key`
 
-Copy ServiceNow/Jira exports into `inbox/raw/` (do not point editors at raw paths until pseudonymized):
+Copy ServiceNow XML exports (and any companion markdown/notes) into `inbox/raw/` (do not point editors at raw paths until pseudonymized):
 
 ```bash
 pii-intake-pseudonymizer-sn inbox/raw --promote STORY-1000
@@ -74,7 +82,7 @@ pii-intake-pseudonymizer-sn inbox/raw --also-technical --promote STORY-1000
 
 Default scrub leaves those technical categories intact. See [CLI reference](cli-reference.md).
 
-**Success check:** `grep user_001 inbox/clean/sample.txt` should show `user_001@example.test`.
+**Success check:** `grep user_001 inbox/clean/sample.xml` should show `user_001@example.test`.
 
 ## Step 3 — commit gate before git push (no key)
 

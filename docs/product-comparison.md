@@ -1,6 +1,6 @@
 # Layout assumptions (this product)
 
-This extract is for ServiceNow-style story monorepos. It is not a general-purpose folder scrubber with a separate public sibling at this time.
+This extract is for scrubbing ServiceNow XML record exports (markdown/text beside them are fine too), usually inside a local tree with `inbox/raw` and optional `src/stories/<STORY-id>/`. It is not a separate public “generic folder” sibling at this time.
 
 | Topic | This product |
 |-------|--------------|

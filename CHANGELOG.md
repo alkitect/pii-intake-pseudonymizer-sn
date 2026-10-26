@@ -2,11 +2,17 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.4] - 2026-10-26
+
+### Changed
+
+- README flow: short What/Who, then Quick start; Supported files and Scrub methods sit after Uninstall as reference
+
 ## [0.2.3] - 2026-10-26
 
 ### Changed
 
-- README leads with privacy why (keep personal/company data off remotes, chat, and AI agents), how-to steps, supported files, and scrub methods
+- README leads with privacy why (keep personal/company data off remotes, chat, and AI agents), supported files, and scrub methods
 - Primary story is ServiceNow XML record exports; markdown and other text are secondary
 - Quick start sample uses unload-style XML
 
@@ -56,6 +62,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Commit detect-only gate on `src/stories/` (`--summary`; refused on `inbox/raw`)
 - Install/verify wrappers and `ci-check.sh` release gate
 
+[0.2.4]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.4
 [0.2.3]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.3
 [0.2.2]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.2
 [0.2.1]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.1

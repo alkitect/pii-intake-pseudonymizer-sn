@@ -15,9 +15,12 @@ if [[ -n "${hike_hits}" ]]; then
   exit 1
 fi
 
-if grep -rE '/home/[A-Za-z0-9._-]+' --include='*.md' . --exclude-dir=.git >/dev/null 2>&1; then
-  echo "ci-check: public markdown must not contain /home/[A-Za-z0-9._-]+ host paths" >&2
-  grep -rE '/home/[A-Za-z0-9._-]+' --include='*.md' . --exclude-dir=.git >&2 || true
+# Generic home-path ban — never embed a real login (re-leaks identity in every commit).
+if grep -rE '/home/[A-Za-z0-9._-]+' --include='*.md' . \
+  --exclude-dir=.git --exclude='ci-check.sh' >/dev/null 2>&1; then
+  echo "ci-check: public markdown must not contain /home/<user> host paths" >&2
+  grep -rE '/home/[A-Za-z0-9._-]+' --include='*.md' . \
+    --exclude-dir=.git --exclude='ci-check.sh' >&2 || true
   exit 1
 fi
 

@@ -69,6 +69,85 @@ def test_sys_created_by_username(mod, pii_map, allowlist):
     assert "<sys_updated_by>system</sys_updated_by>" in result.text
 
 
+def test_login_failed_parm1_username_parm2_ip_left(mod, pii_map, allowlist):
+    """login.failed: parm1 login name scrubbed; parm2 IP kept unless --also-ip."""
+    text = (
+        '<sysevent action="INSERT_OR_UPDATE">'
+        "<name>login.failed</name>"
+        "<parm1>u..demo1</parm1>"
+        "<parm2>203.0.113.40</parm2>"
+        "</sysevent>"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
+    )
+    assert "u..demo1" not in result.text
+    assert "<parm1>username_" in result.text
+    assert "<parm2>203.0.113.40</parm2>" in result.text
+
+
+def test_login_failed_parm2_username_shaped_scrubbed(mod, pii_map, allowlist):
+    text = (
+        "<sysevent>"
+        "<name>login.failed</name>"
+        "<parm1>peerlogin</parm1>"
+        "<parm2>other.login</parm2>"
+        "</sysevent>"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
+    )
+    assert "peerlogin" not in result.text
+    assert "other.login" not in result.text
+    assert result.text.count("username_") >= 2
+
+
+def test_login_event_parm1_scrubbed(mod, pii_map, allowlist):
+    text = (
+        "<sysevent>"
+        "<name>login</name>"
+        "<parm1>demo.user1</parm1>"
+        "<parm2>198.51.100.10</parm2>"
+        "</sysevent>"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
+    )
+    assert "demo.user1" not in result.text
+    assert "<parm1>username_" in result.text
+    assert "198.51.100.10" in result.text
+
+
+def test_non_login_sysevent_parm1_untouched(mod, pii_map, allowlist):
+    text = (
+        "<sysevent>"
+        "<name>email.read</name>"
+        "<parm1>secretuser99</parm1>"
+        "<parm2>also.secret</parm2>"
+        "</sysevent>"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
+    )
+    assert "<parm1>secretuser99</parm1>" in result.text
+    assert "<parm2>also.secret</parm2>" in result.text
+
+
+def test_login_failed_parm1_seeds_plain_replace(mod, pii_map, allowlist):
+    text = (
+        "<sysevent>"
+        "<name>login.failed</name>"
+        "<parm1>leakuser1</parm1>"
+        "</sysevent>\n"
+        "retry as leakuser1 again\n"
+    )
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, scrub_orgs=False
+    )
+    assert "leakuser1" not in result.text
+    assert "username_" in result.text
+
+
 def test_markdown_jira_paste(mod, pii_map, allowlist):
     text = (
         "## Bug\n"

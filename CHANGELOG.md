@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+## [0.2.6] - 2026-11-10
+
+### Added
+
+- Scrub `sysevent` `parm1` / `parm2` on `login` / `login.failed` events (login-name-shaped values → `username_NNN`; IP literals left for optional `--also-ip`; other event names leave `parm*` alone)
+
 ## [0.2.5] - 2026-10-26
 
 ### Changed
@@ -68,6 +76,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Commit detect-only gate on `src/stories/` (`--summary`; refused on `inbox/raw`)
 - Install/verify wrappers and `ci-check.sh` release gate
 
+[0.2.6]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.6
 [0.2.5]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.5
 [0.2.4]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.4
 [0.2.3]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.3

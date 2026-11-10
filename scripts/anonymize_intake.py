@@ -897,6 +897,119 @@ _TEST_WITH_RE = re.compile(
 _PERSON_XML_DISPLAY_RE = _compile_person_xml_re(_XML_TAGS)
 _PERSON_JSON_DISPLAY_RE = _compile_person_json_re(_JSON_KEYS)
 
+# login / login.failed store the login name in parm1 (parm2 is often an IP).
+_LOGIN_EVENT_NAMES = frozenset({"login", "login.failed"})
+_SYSEVENT_BLOCK_RE = re.compile(
+    r"<sysevent\b[^>]*>(.*?)</sysevent\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_SYSEVENT_NAME_RE = re.compile(r"<name>\s*([^<]*?)\s*</name>", re.IGNORECASE)
+_SYSEVENT_PARM_RE = re.compile(
+    r"<(?P<tag>parm[12])\b[^>]*>(?P<val>[^<]*)</(?P=tag)\s*>",
+    re.IGNORECASE,
+)
+
+
+def _is_ip_literal(val: str) -> bool:
+    """True when the value is an IPv4/IPv6 address (not a login name)."""
+    s = (val or "").strip()
+    if not s:
+        return False
+    if IPV4_RE.fullmatch(s):
+        return True
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except ValueError:
+        return False
+
+
+def _login_parm_is_clean(val: str, allowlist: set[str]) -> bool:
+    """True when a login-event parm should stay unchanged (scrubbed / non-person)."""
+    s = (val or "").strip()
+    if not s:
+        return True
+    if is_allowlisted(s, allowlist) or is_pseudo_token(s):
+        return True
+    low = s.lower()
+    if low in {"guest", "system"} or low in _NAME_REPLACE_DENY:
+        return True
+    return low.endswith("@example.test")
+
+
+def _login_parm_token(
+    val: str,
+    *,
+    pii_map: PiiMap,
+    allowlist: set[str],
+) -> tuple[str, str] | None:
+    """Map a login-event parm value to (kind, token), or None to leave unchanged."""
+    s = (val or "").strip()
+    if not s or _login_parm_is_clean(s, allowlist):
+        return None
+    if _TICKET_OR_ID_RE.match(s) or _SYS_ID_RE.match(s) or _is_ip_literal(s):
+        return None
+    if EMAIL_SIMPLE_RE.fullmatch(s):
+        if is_allowlisted(s, allowlist) or s.lower().endswith("@example.test"):
+            return None
+        return ("email", pii_map.email_token(s))
+    if len(s.split()) >= 2:
+        if len(s) < MIN_PERSON_NAME_LEN:
+            return None
+        return ("name", pii_map.name_token(s))
+    if len(s) < MIN_PERSON_PART_LEN or s.lower() in _NAME_REPLACE_DENY:
+        return None
+    return ("username", pii_map.username_token(s))
+
+
+def scrub_login_event_parms(
+    text: str,
+    *,
+    pii_map: PiiMap,
+    allowlist: set[str],
+    hits: list[Hit],
+    source: str = "",
+) -> str:
+    """Harvest + in-tag replace parm1/parm2 on login / login.failed sysevent rows.
+
+    Other events leave parm* alone (sys_ids, table names, …). IP literals in parm2
+    stay for the optional ``--also-ip`` pass — they are not usernames.
+    """
+
+    def _block_sub(m: re.Match[str]) -> str:
+        full = m.group(0)
+        body = m.group(1)
+        name_m = _SYSEVENT_NAME_RE.search(body)
+        if not name_m:
+            return full
+        event_name = (name_m.group(1) or "").strip().lower()
+        if event_name not in _LOGIN_EVENT_NAMES:
+            return full
+
+        def _parm_sub(pm: re.Match[str]) -> str:
+            open_close = pm.group(0)
+            val = (pm.group("val") or "").strip()
+            mapped = _login_parm_token(val, pii_map=pii_map, allowlist=allowlist)
+            if mapped is None:
+                return open_close
+            kind, token = mapped
+            if token == val:
+                return open_close
+            hits.append(Hit(kind, val, token, source))
+            return (
+                open_close[: pm.start("val") - pm.start()]
+                + token
+                + open_close[pm.end("val") - pm.start() :]
+            )
+
+        new_body = _SYSEVENT_PARM_RE.sub(_parm_sub, body)
+        start = m.start(1) - m.start()
+        end = m.end(1) - m.start()
+        return full[:start] + new_body + full[end:]
+
+    return _SYSEVENT_BLOCK_RE.sub(_block_sub, text)
+
+
 _MD_TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$", re.MULTILINE)
 
 _HEADING_BULLETS_RE = re.compile(
@@ -1441,6 +1554,11 @@ def anonymize_text(
         return f"{prefix}{token}{suffix}"
 
     out = JSON_USER_RE.sub(json_user_sub, out)
+
+    # 2b2) login / login.failed sysevent parm1 + parm2 (login name; skip IP literals)
+    out = scrub_login_event_parms(
+        out, pii_map=pii_map, allowlist=allowlist, hits=hits, source=source
+    )
 
     # 2c) Harvest display names from labeled Jira/SN person fields
     if harvest_names:

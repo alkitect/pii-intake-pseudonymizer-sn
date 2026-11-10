@@ -43,7 +43,7 @@ Stable path: clone or download a tag from [Releases](https://github.com/alkitect
 ```bash
 git clone https://github.com/alkitect/pii-intake-pseudonymizer-sn.git
 cd pii-intake-pseudonymizer-sn
-# optional: git checkout v0.2.5
+# optional: git checkout v0.2.6
 ./scripts/install-to-local.sh
 python -m pip install -r requirements-pii.txt pytest
 ```
@@ -139,7 +139,7 @@ Same CLI and map for every scrubbed type. Mixed folders under `inbox/raw/` are f
 
 ## Scrub methods
 
-**Default pass** (stdlib, always available): emails become `user_NNN@example.test`; person fields harvested from XML/JSON/CSV become `PERSON_NNN`; org names from `config/pii-org-scrub.txt` become `ORG_NNN`; plus phones and checksum IBAN. High-confidence leftovers (email, valid IBAN) can block a write. Other detectors (IP, NL id, MAC / postcode / DOB) are flag-gated in the [CLI reference](docs/cli-reference.md).
+**Default pass** (stdlib, always available): emails become `user_NNN@example.test`; `sys_created_by` / `sys_updated_by` and `login` / `login.failed` `sysevent` `parm1`/`parm2` login names become `username_NNN` (IP literals in those parms stay unless `--also-ip`); person fields harvested from XML/JSON/CSV become `PERSON_NNN`; org names from `config/pii-org-scrub.txt` become `ORG_NNN`; plus phones and checksum IBAN. High-confidence leftovers (email, valid IBAN) can block a write. Other detectors (IP, NL id, MAC / postcode / DOB) are flag-gated in the [CLI reference](docs/cli-reference.md).
 
 **Opt-in** (off until you ask):
 

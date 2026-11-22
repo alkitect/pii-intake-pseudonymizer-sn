@@ -879,6 +879,27 @@ _NAME_REPLACE_DENY = frozenset(
         "deze",
         "die",
         "dat",
+        # High-frequency EN verbs (len≥4) — map poison / prose smash
+        "like",
+        "look",
+        "want",
+        "need",
+        "know",
+        "make",
+        "take",
+        "come",
+        "went",
+        "contain",
+        "include",
+        "require",
+        "provide",
+        "return",
+        "select",
+        "update",
+        "delete",
+        "create",
+        "follow",
+        "allow",
     }
 )
 
@@ -1462,6 +1483,40 @@ class AnonymizeResult:
     residual_emails: list[str] = field(default_factory=list)
     residual: _det.ResidualReport | None = None
     ner_status: str = "off"  # off | ok | skipped
+    greeting_warn: int = 0
+
+
+# Line-start Dutch/EN salutations + following name-shaped token (counts only).
+_GREETING_WARN_RE = re.compile(
+    r"(?mi)^(?:Beste|Dear|Hi|Hallo|Geachte)\s+"
+    r"([A-Za-z][A-Za-z'\-]{1,40})\b"
+)
+
+
+def count_greeting_warns(text: str) -> int:
+    """Count greeting lines with a non-pseudo name-shaped token (no originals returned)."""
+    n = 0
+    for m in _GREETING_WARN_RE.finditer(text):
+        token = m.group(1)
+        low = token.lower()
+        if is_pseudo_token(token) or low in _NAME_REPLACE_DENY:
+            continue
+        if low in {
+            "guest",
+            "user",
+            "admin",
+            "system",
+            "sir",
+            "madam",
+            "heer",
+            "mevrouw",
+        }:
+            continue
+        # Require Title-Case-ish (first upper) to skip ALLCAPS headers / code
+        if not token[0].isupper() or token.isupper():
+            continue
+        n += 1
+    return n
 
 
 def anonymize_text(
@@ -1484,6 +1539,7 @@ def anonymize_text(
     scrub_orgs: bool = True,
     org_scrublist: list[str] | None = None,
     expand_name_parts: bool = True,
+    warn_greetings: bool = False,
 ) -> AnonymizeResult:
     hits: list[Hit] = []
     out = text
@@ -1811,12 +1867,14 @@ def anonymize_text(
     residual = _det.scan_residuals(
         out, allowlist=allowlist, also_nl_id=also_nl_id, also_p2=also_p2
     )
+    greeting_warn = count_greeting_warns(out) if warn_greetings else 0
     return AnonymizeResult(
         text=out,
         hits=hits,
         residual_emails=list(residual.emails),
         residual=residual,
         ner_status=ner_status,
+        greeting_warn=greeting_warn,
     )
 
 
@@ -2097,6 +2155,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--also-sn-export",
         action="store_true",
         help="Alias of --also-technical for ServiceNow unload XML intake (default off)",
+    )
+    p.add_argument(
+        "--warn-greetings",
+        action="store_true",
+        help="Counts-only: flag Dutch/EN greeting lines with a name-shaped token "
+        "(greeting_warn=N in agent-safe stdout; never fail-write; default off)",
     )
     p.add_argument(
         "--also-nl-id",
@@ -2588,6 +2652,7 @@ def main(argv: list[str] | None = None) -> int:
     all_hits: list[Hit] = []
     residual_merged = _det.ResidualReport()
     ner_statuses: list[str] = []
+    greeting_warn_total = 0
     pending: list[tuple[Path, AnonymizeResult]] = []
     original_texts: dict[str, str] = {}
 
@@ -2617,7 +2682,9 @@ def main(argv: list[str] | None = None) -> int:
             scrub_orgs=args.scrub_orgs,
             org_scrublist=org_scrublist,
             expand_name_parts=args.expand_name_parts,
+            warn_greetings=args.warn_greetings,
         )
+        greeting_warn_total += result.greeting_warn
         all_hits.extend(result.hits)
         ner_statuses.append(result.ner_status)
         if result.residual:
@@ -2929,6 +2996,8 @@ def main(argv: list[str] | None = None) -> int:
             summary["map"] = "unavailable"
         if args.fail_on_prose_damage or prose_damage["total"]:
             summary["prose_damage"] = {k: v for k, v in prose_damage.items() if v}
+        if args.warn_greetings:
+            summary["greeting_warn"] = greeting_warn_total
         print(json.dumps(summary, indent=2, ensure_ascii=False))
     else:
         msg = (
@@ -2949,6 +3018,8 @@ def main(argv: list[str] | None = None) -> int:
             msg += f" delete_clean_failures={delete_clean_failures}"
         if leftover_clean:
             msg += f" leftover_clean={leftover_clean}"
+        if greeting_warn_total:
+            msg += f" greeting_warn={greeting_warn_total}"
         if residual_merged.warn_count and not high_conf:
             msg += (
                 " NOTE: low-confidence residuals are counts/warn only (not fail-write)"

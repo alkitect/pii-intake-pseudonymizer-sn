@@ -276,7 +276,7 @@ def test_also_paths_off_by_default(mod, pii_map, allowlist):
 def test_also_paths_scrubs_windows_and_unix(mod, pii_map, allowlist):
     text = (
         r"win C:\Users\secret\export.xml\n"
-        "unix /home/secret/export.xml\n"
+        "unix /home/USER/export.xml\n"
     )
     result = mod.anonymize_text(
         text, pii_map=pii_map, allowlist=allowlist, also_ip=False, also_paths=True
@@ -1720,3 +1720,75 @@ def test_prose_damage_counts_zero_when_clean(mod, pii_map, allowlist):
     assert counts["stopword_loss"] == 0
     assert counts["stopword_name_hits"] == 0
     assert counts["total"] == 0
+
+
+def test_deny_like_does_not_plain_replace(mod, pii_map, allowlist):
+    """Map poison `like` must not rewrite lowercase English."""
+    pii_map.names["like"] = "PERSON_014"
+    text = "so outbound mail does not look like UvA mail.\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, harvest_names=False
+    )
+    assert "look like" in result.text
+    assert "PERSON_014" not in result.text
+
+
+def test_deny_contain_does_not_plain_replace(mod, pii_map, allowlist):
+    """Map poison `contain` must not rewrite prose."""
+    pii_map.names["contain"] = "PERSON_099"
+    text = "filters that contain personal data must be scrubbed.\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, harvest_names=False
+    )
+    assert "contain personal" in result.text
+    assert "PERSON_099" not in result.text
+    assert pii_map.name_token("contain") == "contain"
+    assert pii_map.name_token("include") == "include"
+    assert "include" not in pii_map.names
+
+
+def test_deny_provide_peer_does_not_plain_replace(mod, pii_map, allowlist):
+    pii_map.names["provide"] = "PERSON_088"
+    text = "agents provide counts only.\n"
+    result = mod.anonymize_text(
+        text, pii_map=pii_map, allowlist=allowlist, also_ip=False, harvest_names=False
+    )
+    assert "provide counts" in result.text
+    assert "PERSON_088" not in result.text
+
+
+def test_warn_greetings_counts_when_enabled(mod, pii_map, allowlist):
+    text = "Beste Jan,\n\nThanks.\nDear Sam,\nHi Guest,\n"
+    off = mod.anonymize_text(
+        text,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        harvest_names=False,
+        warn_greetings=False,
+    )
+    assert off.greeting_warn == 0
+    on = mod.anonymize_text(
+        text,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        harvest_names=False,
+        warn_greetings=True,
+    )
+    assert on.greeting_warn >= 2
+    assert "Jan" in on.text or on.greeting_warn >= 1
+    assert isinstance(on.greeting_warn, int)
+
+
+def test_warn_greetings_skips_pseudo_and_guest(mod, pii_map, allowlist):
+    text = "Beste PERSON_001,\nHi Guest,\nHallo Mevrouw,\n"
+    result = mod.anonymize_text(
+        text,
+        pii_map=pii_map,
+        allowlist=allowlist,
+        also_ip=False,
+        harvest_names=False,
+        warn_greetings=True,
+    )
+    assert result.greeting_warn == 0

@@ -74,13 +74,15 @@ Promote **merges** verified files (keeps siblings); use `--replace-target` to wi
 
 Output lands in `inbox/clean/` with stable tokens. Raw text sources are deleted after successful write unless `--keep-raw`.
 
-When drops contain hostnames, paths, shell lines, or PEM blocks, add **`--also-technical`** on the write pass:
+When drops contain hostnames, paths, shell lines, or PEM blocks (typical SN unload XML), add **`--also-technical`** or its alias **`--also-sn-export`** on the write pass:
 
 ```bash
 pii-intake-pseudonymizer-sn inbox/raw --also-technical --promote STORY-1000
+# same effect:
+pii-intake-pseudonymizer-sn inbox/raw --also-sn-export --promote STORY-1000
 ```
 
-Default scrub leaves those technical categories intact. See [CLI reference](cli-reference.md).
+Default scrub leaves those technical categories intact. Optional `--warn-greetings` only adds a counts-only `greeting_warn=N` field (never fails the write). See [CLI reference](cli-reference.md).
 
 **Success check:** `grep user_001 inbox/clean/sample.xml` should show `user_001@example.test`.
 

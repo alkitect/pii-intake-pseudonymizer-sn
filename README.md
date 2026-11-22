@@ -43,7 +43,7 @@ Stable path: clone or download a tag from [Releases](https://github.com/alkitect
 ```bash
 git clone https://github.com/alkitect/pii-intake-pseudonymizer-sn.git
 cd pii-intake-pseudonymizer-sn
-# optional: git checkout v0.2.6
+# optional: git checkout v0.3.0
 ./scripts/install-to-local.sh
 python -m pip install -r requirements-pii.txt pytest
 ```

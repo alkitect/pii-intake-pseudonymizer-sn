@@ -49,10 +49,10 @@ def test_find_labeled_machines():
 
 
 def test_find_absolute_paths():
-    text = r"C:\Users\a\file.txt and /home/a/file.txt"
+    text = r"C:\Users\USER\file.txt and /home/USER/file.txt"
     paths = det.find_absolute_paths(text)
     assert any("C:\\Users" in p for p in paths)
-    assert any("/home/a" in p for p in paths)
+    assert any("/home/USER" in p for p in paths)
 
 
 def test_find_command_lines():

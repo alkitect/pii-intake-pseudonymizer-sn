@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-22
+
+### Added
+
+- High-frequency EN verbs on the name-replace deny list (`like`, `contain`, `include`, `provide`, …) so map-poison tokens cannot seed or plain-replace prose
+- Opt-in `--warn-greetings`: counts-only Dutch/EN greeting lines with a name-shaped token (`greeting_warn=N`; never fail-write; never prints matched names)
+
 ## [0.2.6] - 2026-11-10
 
 ### Added
@@ -76,6 +83,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Commit detect-only gate on `src/stories/` (`--summary`; refused on `inbox/raw`)
 - Install/verify wrappers and `ci-check.sh` release gate
 
+[0.3.0]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.3.0
 [0.2.6]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.6
 [0.2.5]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.5
 [0.2.4]: https://github.com/alkitect/pii-intake-pseudonymizer-sn/releases/tag/v0.2.4

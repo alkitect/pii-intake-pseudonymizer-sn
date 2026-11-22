@@ -21,14 +21,14 @@ Story ID pattern: `STORY-\d+` or `STRY\d+` (case-insensitive). For a free-form d
 | Category | Flags |
 |----------|-------|
 | Modes | `--dry-run`, `--summary`, `--per-file-summary`, `--fail-on-hits`, `--report`, `--in-place` |
-| Detection | `--ner`, `--also-ip`, `--also-machines`, `--also-paths`, `--also-commands`, `--also-certificates`, **`--also-technical`**, `--also-nl-id`, `--also-p2`, `--harvest-names`, `--scrub-orgs` |
+| Detection | `--ner`, `--also-ip`, `--also-machines`, `--also-paths`, `--also-commands`, `--also-certificates`, **`--also-technical`** / `--also-sn-export`, `--warn-greetings`, `--also-nl-id`, `--also-p2`, `--harvest-names`, `--scrub-orgs` |
 | Map | `--map`, `--map-migrate`, `--map-rollback`, `--map-prune-unused`, `--irreversible`, `--map-audit` |
 | Layout | `--out`, `--force-path`, `--keep-raw`, `--keep-clean` |
 | Config | `--allowlist`, `--org-list` |
 
 > **`--report`** prints original PII. Human interactive use only — never in CI or shared logs.
 
-Shared mode and detection flags are summarized above; see [Getting started](getting-started.md) and [examples](examples/README.md) for replacement samples. Technical categories (`MACHINE_NNN`, `PATH_NNN`, `CMD_NNN`, `CERT_NNN`) require `--also-technical` or individual `--also-*` flags (default off).
+Shared mode and detection flags are summarized above; see [Getting started](getting-started.md) and [examples](examples/README.md) for replacement samples. Technical categories (`MACHINE_NNN`, `PATH_NNN`, `CMD_NNN`, `CERT_NNN`) require `--also-technical` (or alias `--also-sn-export`) or individual `--also-*` flags (default off). `--warn-greetings` is counts-only (`greeting_warn=N`); it never fails a write and never prints matched names.
 
 ## Gate vs intake
 
